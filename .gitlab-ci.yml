@@ -1,0 +1,32 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: hamravesh.hamdocker.ir/public/darkube-cli:v1.1
+  only:
+    refs:
+      - main
+  script:
+    - darkube build --push
+      -t $IMAGE:$CI_COMMIT_SHORT_SHA
+      -t $IMAGE:$CI_COMMIT_REF_SLUG
+      --workdir .
+      --file ./Dockerfile
+      --build-context .
+
+deploy:
+  stage: deploy
+  image: hamravesh.hamdocker.ir/public/darkube-cli:v1.1
+  only:
+    refs:
+      - main
+  script:
+    - darkube deploy
+      --ref main
+      --token ${DARKUBE_DEPLOY_TOKEN}
+      --app-id ${DARKUBE_APP_ID}
+      --image-tag "${CI_COMMIT_SHORT_SHA}"
+      --job-id "${CI_JOB_ID}"
+      --stateless-app true

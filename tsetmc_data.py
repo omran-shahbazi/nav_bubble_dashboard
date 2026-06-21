@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-TZ = timezone(timedelta(hours=-7, minutes=0))
+TZ = timezone(timedelta(hours=3, minutes=30))
 PROJECT_DIR = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_DIR / "data"
 CSV_PATH = DATA_DIR / "gold_funds.csv"

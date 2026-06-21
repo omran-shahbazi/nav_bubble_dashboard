@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from tsetmc_data import CSV_PATH, collect_gold_funds_data
+from tsetmc_data import CSV_PATH, TZ, collect_gold_funds_data
 
 st.set_page_config(
     page_title="Gold Funds NAV Bubble",
@@ -68,7 +68,7 @@ def get_data() -> pd.DataFrame:
 
 
 df = get_data()
-fetch_time = df["created_at"].max()
+fetch_time = df["created_at"].max().tz_convert(TZ)
 
 top_left, top_right = st.columns([3, 1])
 with top_left:
@@ -76,7 +76,7 @@ with top_left:
         f"""
         <span class="fetch-chip">
             <span class="fetch-dot"></span>
-            Fetched&nbsp;·&nbsp;{fetch_time.strftime('%Y-%m-%d %H:%M:%S')}
+            Fetched&nbsp;·&nbsp;{fetch_time.strftime('%Y-%m-%d %H:%M:%S')}&nbsp;Tehran
         </span>
         """,
         unsafe_allow_html=True,

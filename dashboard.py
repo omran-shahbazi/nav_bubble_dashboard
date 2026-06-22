@@ -112,9 +112,14 @@ bubble = (
 bubble.index = bubble.index + 1
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Highest Premium", f"{bubble['nav_bubble'].max():+.2f}%", bubble.iloc[0]["symbol"])
-m2.metric("Lowest / Discount", f"{bubble['nav_bubble'].min():+.2f}%", bubble.iloc[-1]["symbol"])
-m3.metric("Average Bubble", f"{bubble['nav_bubble'].mean():+.2f}%")
+with m1:
+    st.metric("Highest", f"{bubble['nav_bubble'].max():+.2f}%")
+    st.caption(bubble.iloc[0]["symbol"])
+with m2:
+    st.metric("Lowest", f"{bubble['nav_bubble'].min():+.2f}%")
+    st.caption(bubble.iloc[-1]["symbol"])
+with m3:
+    st.metric("Average Bubble", f"{bubble['nav_bubble'].mean():+.2f}%")
 
 st.markdown("")
 

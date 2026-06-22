@@ -17,7 +17,26 @@ st.markdown(
     """
     <style>
     #MainMenu, footer {visibility: hidden;}
-    .block-container {padding-top: 2rem; max-width: 1100px;}
+    .block-container {
+        padding-top: 3.5rem;
+        padding-bottom: 2rem;
+        max-width: 1100px;
+        overflow: visible;
+    }
+    [data-testid="stMarkdownContainer"] p {
+        overflow: visible;
+        line-height: normal;
+        margin: 0.5rem 0;
+        padding: 0.25rem 0;
+    }
+    [data-testid="stMarkdownContainer"],
+    [data-testid="column"] {
+        overflow: visible;
+    }
+    [data-testid="stButton"] {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
     .fetch-chip {
         display: inline-flex;
         align-items: center;
@@ -26,9 +45,11 @@ st.markdown(
         border: 1px solid #2e3a4f;
         color: #cdd6e4;
         font-size: 0.85rem;
-        padding: 6px 14px;
+        line-height: 1.4;
+        padding: 8px 14px;
         border-radius: 999px;
         font-family: 'SF Mono', 'Menlo', monospace;
+        vertical-align: middle;
     }
     .fetch-dot {
         width: 8px; height: 8px;

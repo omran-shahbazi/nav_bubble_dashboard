@@ -134,7 +134,7 @@ def bubble_color(val: float) -> str:
 
 styled = (
     bubble.rename(columns={"symbol": "Fund", "nav_bubble": "NAV Bubble (%)"})
-    .style.format({"NAV Bubble (%)": "{:+.2f}%", "Gold Fund Ratio": "{:,.4f}"})
+    .style.format({"NAV Bubble (%)": "{:+.2f}%", "Gold Fund Ratio": "{:,.0f}"})
     .map(bubble_color, subset=["NAV Bubble (%)"])
 )
 
@@ -144,6 +144,6 @@ st.dataframe(
     height=min(560, 45 + 35 * len(bubble)),
     column_config={
         "NAV Bubble (%)": st.column_config.NumberColumn(width="medium"),
-        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%.4f"),
+        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%.0f"),
     },
 )

@@ -3,7 +3,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from tsetmc_data import CSV_PATH, TZ, collect_gold_funds_data
+from tsetmc_data import CSV_PATH, DATA_DIR, TZ, collect_gold_funds_data
+
+CONVERSION_PATH = DATA_DIR / "gold_to_fund_conversion.csv"
 
 st.set_page_config(
     page_title="Gold Funds NAV Bubble",
@@ -54,6 +56,11 @@ st.markdown(
 
 
 @st.cache_data(show_spinner=False)
+def load_conversion() -> pd.DataFrame:
+    return pd.read_csv(CONVERSION_PATH)
+
+
+@st.cache_data(show_spinner=False)
 def load_data(_mtime: float) -> pd.DataFrame:
     df = pd.read_csv(CSV_PATH)
     df["created_at"] = pd.to_datetime(df["created_at"])
@@ -98,6 +105,7 @@ st.markdown(
 bubble = (
     df[["symbol", "nav_bubble"]]
     .dropna(subset=["nav_bubble"])
+    .merge(load_conversion(), on="symbol", how="left")
     .sort_values("nav_bubble", ascending=False)
     .reset_index(drop=True)
 )
@@ -121,7 +129,7 @@ def bubble_color(val: float) -> str:
 
 styled = (
     bubble.rename(columns={"symbol": "Fund", "nav_bubble": "NAV Bubble (%)"})
-    .style.format({"NAV Bubble (%)": "{:+.2f}%"})
+    .style.format({"NAV Bubble (%)": "{:+.2f}%", "Gold Fund Ratio": "{:,.4f}"})
     .map(bubble_color, subset=["NAV Bubble (%)"])
 )
 
@@ -131,5 +139,6 @@ st.dataframe(
     height=min(560, 45 + 35 * len(bubble)),
     column_config={
         "NAV Bubble (%)": st.column_config.NumberColumn(width="medium"),
+        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%.4f"),
     },
 )

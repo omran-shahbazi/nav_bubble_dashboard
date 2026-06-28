@@ -124,7 +124,7 @@ st.markdown(
 )
 
 bubble = (
-    df[["symbol", "nav_bubble"]]
+    df[["symbol", "nav_bubble", "last_price", "nav"]]
     .dropna(subset=["nav_bubble"])
     .merge(load_conversion(), on="symbol", how="left")
     .sort_values("nav_bubble", ascending=False)
@@ -153,9 +153,24 @@ def bubble_color(val: float) -> str:
     return f"background-color: rgba(248, 113, 113, {alpha:.3f}); color: #000000;"
 
 
+display = bubble.rename(
+    columns={
+        "symbol": "Fund",
+        "nav_bubble": "NAV Bubble (%)",
+        "last_price": "Last Price",
+        "nav": "NAV",
+    }
+)[["Fund", "NAV Bubble (%)", "Last Price", "NAV", "Gold Fund Ratio"]]
+
 styled = (
-    bubble.rename(columns={"symbol": "Fund", "nav_bubble": "NAV Bubble (%)"})
-    .style.format({"NAV Bubble (%)": "{:+.2f}%", "Gold Fund Ratio": "{:,.0f}"})
+    display.style.format(
+        {
+            "NAV Bubble (%)": "{:+.2f}%",
+            "Last Price": "{:,.0f}",
+            "NAV": "{:,.0f}",
+            "Gold Fund Ratio": "{:,.0f}",
+        }
+    )
     .map(bubble_color, subset=["NAV Bubble (%)"])
 )
 
@@ -165,6 +180,8 @@ st.dataframe(
     height=min(560, 45 + 35 * len(bubble)),
     column_config={
         "NAV Bubble (%)": st.column_config.NumberColumn(width="medium"),
+        "Last Price": st.column_config.NumberColumn(width="medium", format="%.0f"),
+        "NAV": st.column_config.NumberColumn(width="medium", format="%.0f"),
         "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%.0f"),
     },
 )

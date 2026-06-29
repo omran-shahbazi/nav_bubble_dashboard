@@ -130,6 +130,7 @@ bubble = (
     .sort_values("nav_bubble", ascending=False)
     .reset_index(drop=True)
 )
+bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
 bubble.index = bubble.index + 1
 
 m1, m2, m3 = st.columns(3)
@@ -159,16 +160,18 @@ display = bubble.rename(
         "nav_bubble": "NAV Bubble (%)",
         "last_price": "Last Price",
         "nav": "NAV",
+        "eq_gold_price": "EqGold Price",
     }
-)[["Fund", "NAV Bubble (%)", "Last Price", "NAV", "Gold Fund Ratio"]]
+)[["Fund", "NAV Bubble (%)", "Last Price", "NAV", "Gold Fund Ratio", "EqGold Price"]]
 
 styled = (
     display.style.format(
         {
-            "NAV Bubble (%)": "{:+.2f}%",
+            "NAV Bubble (%)": "{:+,.2f}%",
             "Last Price": "{:,.0f}",
             "NAV": "{:,.0f}",
             "Gold Fund Ratio": "{:,.0f}",
+            "EqGold Price": "{:,.0f}",
         }
     )
     .map(bubble_color, subset=["NAV Bubble (%)"])
@@ -179,9 +182,10 @@ st.dataframe(
     use_container_width=True,
     height=min(560, 45 + 35 * len(bubble)),
     column_config={
-        "NAV Bubble (%)": st.column_config.NumberColumn(width="medium"),
-        "Last Price": st.column_config.NumberColumn(width="medium", format="%.0f"),
-        "NAV": st.column_config.NumberColumn(width="medium", format="%.0f"),
-        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%.0f"),
+        "NAV Bubble (%)": st.column_config.NumberColumn(width="medium", format="+%.2f%%"),
+        "Last Price": st.column_config.NumberColumn(width="medium", format="%d"),
+        "NAV": st.column_config.NumberColumn(width="medium", format="%d"),
+        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%d"),
+        "EqGold Price": st.column_config.NumberColumn(width="medium", format="%d"),
     },
 )

@@ -20,7 +20,7 @@ st.markdown(
     .block-container {
         padding-top: 3.5rem;
         padding-bottom: 2rem;
-        max-width: 1100px;
+        max-width: 100%;
         overflow: visible;
     }
     [data-testid="stMarkdownContainer"] p {
@@ -69,6 +69,40 @@ st.markdown(
         color: #8b97ad;
         font-size: 0.95rem;
         margin-bottom: 1.5rem;
+    }
+    .bubble-table-wrap {
+        width: 100%;
+        overflow-x: hidden;
+    }
+    .bubble-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+    }
+    .bubble-table th,
+    .bubble-table td {
+        padding: 7px 6px;
+        border-bottom: 1px solid #2e3a4f;
+        vertical-align: middle;
+    }
+    .bubble-table th {
+        color: #8b97ad;
+        font-weight: 600;
+        text-align: left;
+        white-space: nowrap;
+    }
+    .bubble-table td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-family: 'SF Mono', 'Menlo', monospace;
+        white-space: nowrap;
+    }
+    .bubble-table td.fund {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     </style>
     """,
@@ -131,7 +165,6 @@ bubble = (
     .reset_index(drop=True)
 )
 bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
-bubble.index = bubble.index + 1
 
 m1, m2, m3 = st.columns(3)
 with m1:
@@ -145,47 +178,60 @@ with m3:
 
 st.markdown("")
 
-def bubble_color(val: float) -> str:
+def fmt_int(value: float) -> str:
+    if pd.isna(value):
+        return ""
+    return f"{value:,.0f}"
+
+
+def fmt_pct(value: float) -> str:
+    if pd.isna(value):
+        return ""
+    return f"{value:+,.2f}%"
+
+
+def bubble_cell_style(value: float) -> str:
     span = max(abs(bubble["nav_bubble"].min()), abs(bubble["nav_bubble"].max()), 1e-9)
-    intensity = min(abs(val) / span, 1.0)
+    intensity = min(abs(value) / span, 1.0)
     alpha = 0.15 + 0.55 * intensity
-    if val >= 0:
-        return f"background-color: rgba(52, 211, 153, {alpha:.3f}); color: #000000;"
-    return f"background-color: rgba(248, 113, 113, {alpha:.3f}); color: #000000;"
+    if value >= 0:
+        return f"background-color: rgba(52, 211, 153, {alpha:.3f}); color: #000;"
+    return f"background-color: rgba(248, 113, 113, {alpha:.3f}); color: #000;"
 
 
-display = bubble.rename(
-    columns={
-        "symbol": "Fund",
-        "nav_bubble": "NAV Bubble (%)",
-        "last_price": "Last Price",
-        "nav": "NAV",
-        "eq_gold_price": "EqGold Price",
-    }
-)[["Fund", "NAV Bubble (%)", "Last Price", "NAV", "Gold Fund Ratio", "EqGold Price"]]
-
-styled = (
-    display.style.format(
-        {
-            "NAV Bubble (%)": "{:+,.2f}%",
-            "Last Price": "{:,.0f}",
-            "NAV": "{:,.0f}",
-            "Gold Fund Ratio": "{:,.0f}",
-            "EqGold Price": "{:,.0f}",
-        }
+def build_table_html() -> str:
+    headers = [
+        "Fund",
+        "Bubble %",
+        "Last Price",
+        "NAV",
+        "Gold Fund Ratio",
+        "EqGold Price",
+    ]
+    col_widths = ["11%", "10%", "15%", "15%", "14%", "35%"]
+    colgroup = "".join(f'<col style="width:{width};">' for width in col_widths)
+    rows = []
+    for _, row in bubble.iterrows():
+        bubble_style = bubble_cell_style(row["nav_bubble"])
+        rows.append(
+            "<tr>"
+            f'<td class="fund">{row["symbol"]}</td>'
+            f'<td class="num" style="{bubble_style}">{fmt_pct(row["nav_bubble"])}</td>'
+            f'<td class="num">{fmt_int(row["last_price"])}</td>'
+            f'<td class="num">{fmt_int(row["nav"])}</td>'
+            f'<td class="num">{fmt_int(row["Gold Fund Ratio"])}</td>'
+            f'<td class="num">{fmt_int(row["eq_gold_price"])}</td>'
+            "</tr>"
+        )
+    header_html = "".join(f"<th>{name}</th>" for name in headers)
+    return (
+        '<div class="bubble-table-wrap">'
+        '<table class="bubble-table">'
+        f"<colgroup>{colgroup}</colgroup>"
+        f"<thead><tr>{header_html}</tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table></div>"
     )
-    .map(bubble_color, subset=["NAV Bubble (%)"])
-)
 
-st.dataframe(
-    styled,
-    use_container_width=True,
-    height=min(560, 45 + 35 * len(bubble)),
-    column_config={
-        "NAV Bubble (%)": st.column_config.NumberColumn(width="medium", format="+%.2f%%"),
-        "Last Price": st.column_config.NumberColumn(width="medium", format="%d"),
-        "NAV": st.column_config.NumberColumn(width="medium", format="%d"),
-        "Gold Fund Ratio": st.column_config.NumberColumn(width="medium", format="%d"),
-        "EqGold Price": st.column_config.NumberColumn(width="medium", format="%d"),
-    },
-)
+
+st.markdown(build_table_html(), unsafe_allow_html=True)

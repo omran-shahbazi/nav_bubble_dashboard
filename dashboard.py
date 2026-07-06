@@ -103,6 +103,11 @@ st.markdown(
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        direction: rtl;
+        text-align: right;
+    }
+    .bubble-table th:first-child {
+        text-align: right;
     }
     </style>
     """,

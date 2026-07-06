@@ -164,16 +164,32 @@ html, body {{
 }}
 .bubble-table th,
 .bubble-table td {{
-    padding: 7px 6px;
+    padding: 7px 8px;
     border-bottom: 1px solid #2e3a4f;
+    border-right: 1px solid #2e3a4f;
     vertical-align: middle;
+}}
+.bubble-table th:last-child,
+.bubble-table td:last-child {{
+    border-right: none;
 }}
 .bubble-table th {{
     color: #8b97ad;
     font-weight: 600;
-    text-align: left;
     white-space: nowrap;
     user-select: none;
+}}
+.bubble-table th.fund-header,
+.bubble-table td.fund {{
+    text-align: right;
+    direction: rtl;
+}}
+.bubble-table th.num-header,
+.bubble-table td.num {{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: "SF Mono", "Menlo", monospace;
+    white-space: nowrap;
 }}
 .bubble-table th.sortable {{
     cursor: pointer;
@@ -194,22 +210,10 @@ html, body {{
     background: #3b82f6;
     color: #ffffff;
 }}
-.bubble-table td.num {{
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-family: "SF Mono", "Menlo", monospace;
-    white-space: nowrap;
-}}
 .bubble-table td.fund {{
     font-weight: 600;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    direction: rtl;
-    text-align: right;
-}}
-.bubble-table th:first-child {{
-    text-align: right;
 }}
 </style>
 </head>
@@ -226,13 +230,13 @@ html, body {{
 </colgroup>
 <thead>
 <tr>
-<th>Fund</th>
-<th class="sortable" data-col="1">Bubble %<span class="sort-indicator"></span></th>
-<th class="sortable" data-col="2">Avg Bubble<span class="sort-indicator"></span></th>
-<th class="sortable" data-col="3">Last Price<span class="sort-indicator"></span></th>
-<th class="sortable" data-col="4">NAV<span class="sort-indicator"></span></th>
-<th class="sortable" data-col="5">GF Ratio<span class="sort-indicator"></span></th>
-<th class="sortable" data-col="6">EqGold Price<span class="sort-indicator"></span></th>
+<th class="fund-header">Fund</th>
+<th class="sortable num-header" data-col="1">Bubble %<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="2">Avg Bubble<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="3">Last Price<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="4">NAV<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="5">GF Ratio<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="6">EqGold Price<span class="sort-indicator"></span></th>
 </tr>
 </thead>
 <tbody>

@@ -1,7 +1,9 @@
+import html
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from tsetmc_data import CSV_PATH, DATA_DIR, TZ, collect_gold_funds_data
 
@@ -68,44 +70,8 @@ st.markdown(
         background: #34d399;
         box-shadow: 0 0 8px #34d399;
     }
-    .bubble-table-wrap {
-        width: 100%;
-        overflow-x: hidden;
-    }
-    .bubble-table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
-        font-size: 0.72rem;
-    }
-    .bubble-table th,
-    .bubble-table td {
-        padding: 7px 6px;
-        border-bottom: 1px solid #2e3a4f;
-        vertical-align: middle;
-    }
-    .bubble-table th {
-        color: #8b97ad;
-        font-weight: 600;
-        text-align: left;
-        white-space: nowrap;
-    }
-    .bubble-table td.num {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-        font-family: 'SF Mono', 'Menlo', monospace;
-        white-space: nowrap;
-    }
-    .bubble-table td.fund {
-        font-weight: 600;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        direction: rtl;
-        text-align: right;
-    }
-    .bubble-table th:first-child {
-        text-align: right;
+    iframe[title="streamlit_components_v1"] {
+        border: none;
     }
     </style>
     """,
@@ -133,6 +99,187 @@ def get_data() -> pd.DataFrame:
         with st.spinner("Fetching gold funds data for the first time..."):
             collect_gold_funds_data().to_csv(CSV_PATH, index=False)
     return load_data(Path(CSV_PATH).stat().st_mtime)
+
+
+def fmt_int(value: float) -> str:
+    if pd.isna(value):
+        return ""
+    return f"{value:,.0f}"
+
+
+def fmt_avg_bubble(value) -> str:
+    if pd.isna(value):
+        return ""
+    text = str(value).strip()
+    return text if text.endswith("%") else f"{text}%"
+
+
+def fmt_pct(value: float) -> str:
+    if pd.isna(value):
+        return ""
+    return f"{value:+,.2f}%"
+
+
+def parse_avg_bubble(value) -> float:
+    if pd.isna(value):
+        return float("nan")
+    return float(str(value).strip().rstrip("%"))
+
+
+def build_table_html(df: pd.DataFrame) -> str:
+    rows_html = []
+    for _, row in df.iterrows():
+        avg_bubble = parse_avg_bubble(row["Average NAV Bubble"])
+        rows_html.append(
+            "<tr>"
+            f"<td class='fund'>{html.escape(str(row['symbol']))}</td>"
+            f"<td class='num' data-value='{row['nav_bubble']:.6f}'>{fmt_pct(row['nav_bubble'])}</td>"
+            f"<td class='num' data-value='{avg_bubble:.6f}'>{fmt_avg_bubble(row['Average NAV Bubble'])}</td>"
+            f"<td class='num' data-value='{row['last_price']:.0f}'>{fmt_int(row['last_price'])}</td>"
+            f"<td class='num' data-value='{row['nav']:.0f}'>{fmt_int(row['nav'])}</td>"
+            f"<td class='num' data-value='{row['Gold Fund Ratio']:.0f}'>{fmt_int(row['Gold Fund Ratio'])}</td>"
+            f"<td class='num' data-value='{row['eq_gold_price']:.0f}'>{fmt_int(row['eq_gold_price'])}</td>"
+            "</tr>"
+        )
+
+    tbody = "\n".join(rows_html)
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing: border-box; }}
+html, body {{
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Source Sans Pro", sans-serif;
+}}
+.bubble-table {{
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}}
+.bubble-table th,
+.bubble-table td {{
+    padding: 7px 6px;
+    border-bottom: 1px solid #2e3a4f;
+    vertical-align: middle;
+}}
+.bubble-table th {{
+    color: #8b97ad;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    user-select: none;
+}}
+.bubble-table th.sortable {{
+    cursor: pointer;
+}}
+.bubble-table th.sortable:hover {{
+    color: #cdd6e4;
+}}
+.bubble-table th .sort-indicator {{
+    margin-left: 4px;
+    font-size: 0.65rem;
+    color: #f7c948;
+}}
+.bubble-table tbody tr:nth-child(odd) {{
+    background: #ffffff;
+    color: #111827;
+}}
+.bubble-table tbody tr:nth-child(even) {{
+    background: #3b82f6;
+    color: #ffffff;
+}}
+.bubble-table td.num {{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: "SF Mono", "Menlo", monospace;
+    white-space: nowrap;
+}}
+.bubble-table td.fund {{
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: right;
+}}
+.bubble-table th:first-child {{
+    text-align: right;
+}}
+</style>
+</head>
+<body>
+<table class="bubble-table" id="funds-table">
+<colgroup>
+<col style="width:12%">
+<col style="width:10%">
+<col style="width:10%">
+<col style="width:14%">
+<col style="width:14%">
+<col style="width:12%">
+<col style="width:18%">
+</colgroup>
+<thead>
+<tr>
+<th>Fund</th>
+<th class="sortable" data-col="1">Bubble %<span class="sort-indicator"></span></th>
+<th class="sortable" data-col="2">Avg Bubble<span class="sort-indicator"></span></th>
+<th class="sortable" data-col="3">Last Price<span class="sort-indicator"></span></th>
+<th class="sortable" data-col="4">NAV<span class="sort-indicator"></span></th>
+<th class="sortable" data-col="5">GF Ratio<span class="sort-indicator"></span></th>
+<th class="sortable" data-col="6">EqGold Price<span class="sort-indicator"></span></th>
+</tr>
+</thead>
+<tbody>
+{tbody}
+</tbody>
+</table>
+<script>
+const sortState = {{}};
+
+function sortTable(colIdx) {{
+    const table = document.getElementById("funds-table");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const asc = sortState[colIdx] !== "asc";
+    Object.keys(sortState).forEach((key) => delete sortState[key]);
+    sortState[colIdx] = asc ? "asc" : "desc";
+
+    rows.sort((a, b) => {{
+        const av = parseFloat(a.children[colIdx].dataset.value);
+        const bv = parseFloat(b.children[colIdx].dataset.value);
+        const aNaN = Number.isNaN(av);
+        const bNaN = Number.isNaN(bv);
+        if (aNaN && bNaN) return 0;
+        if (aNaN) return 1;
+        if (bNaN) return -1;
+        return asc ? av - bv : bv - av;
+    }});
+
+    rows.forEach((row) => tbody.appendChild(row));
+
+    document.querySelectorAll("th.sortable .sort-indicator").forEach((el) => {{
+        el.textContent = "";
+    }});
+    const active = document.querySelector(`th.sortable[data-col="${{colIdx}}"] .sort-indicator`);
+    if (active) {{
+        active.textContent = asc ? "▲" : "▼";
+    }}
+}}
+
+document.querySelectorAll("th.sortable").forEach((header) => {{
+    header.addEventListener("click", () => sortTable(Number(header.dataset.col)));
+}});
+
+sortTable(1);
+</script>
+</body>
+</html>"""
 
 
 df = get_data()
@@ -167,70 +314,5 @@ bubble = (
 )
 bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
 
-
-def fmt_int(value: float) -> str:
-    if pd.isna(value):
-        return ""
-    return f"{value:,.0f}"
-
-
-def fmt_avg_bubble(value) -> str:
-    if pd.isna(value):
-        return ""
-    text = str(value).strip()
-    return text if text.endswith("%") else f"{text}%"
-
-
-def fmt_pct(value: float) -> str:
-    if pd.isna(value):
-        return ""
-    return f"{value:+,.2f}%"
-
-
-def bubble_cell_style(value: float) -> str:
-    span = max(abs(bubble["nav_bubble"].min()), abs(bubble["nav_bubble"].max()), 1e-9)
-    intensity = min(abs(value) / span, 1.0)
-    alpha = 0.15 + 0.55 * intensity
-    if value >= 0:
-        return f"background-color: rgba(52, 211, 153, {alpha:.3f}); color: #000;"
-    return f"background-color: rgba(248, 113, 113, {alpha:.3f}); color: #000;"
-
-
-def build_table_html() -> str:
-    headers = [
-        "Fund",
-        "Bubble %",
-        "Avg Bubble",
-        "Last Price",
-        "NAV",
-        "GF Ratio",
-        "EqGold Price",
-    ]
-    col_widths = ["10%", "9%", "9%", "13%", "13%", "11%", "35%"]
-    colgroup = "".join(f'<col style="width:{width};">' for width in col_widths)
-    rows = []
-    for _, row in bubble.iterrows():
-        bubble_style = bubble_cell_style(row["nav_bubble"])
-        rows.append(
-            "<tr>"
-            f'<td class="fund">{row["symbol"]}</td>'
-            f'<td class="num" style="{bubble_style}">{fmt_pct(row["nav_bubble"])}</td>'
-            f'<td class="num">{fmt_avg_bubble(row["Average NAV Bubble"])}</td>'
-            f'<td class="num">{fmt_int(row["last_price"])}</td>'
-            f'<td class="num">{fmt_int(row["nav"])}</td>'
-            f'<td class="num">{fmt_int(row["Gold Fund Ratio"])}</td>'
-            f'<td class="num">{fmt_int(row["eq_gold_price"])}</td>'
-            "</tr>"
-        )
-    header_html = "".join(f"<th>{name}</th>" for name in headers)
-    return (
-        '<div class="bubble-table-wrap">'
-        '<table class="bubble-table">'
-        f"<colgroup>{colgroup}</colgroup>"
-        f"<thead><tr>{header_html}</tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
-        "</table></div>"
-    )
-
-
-st.markdown(build_table_html(), unsafe_allow_html=True)
+table_height = 42 + 31 * 32
+components.html(build_table_html(bubble), height=table_height, scrolling=False)

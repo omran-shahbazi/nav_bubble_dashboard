@@ -16,18 +16,29 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    #MainMenu, footer {visibility: hidden;}
+    #MainMenu, footer, header {visibility: hidden;}
+    header[data-testid="stHeader"] {display: none;}
     .block-container {
-        padding-top: 3.5rem;
-        padding-bottom: 2rem;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
         max-width: 100%;
         overflow: visible;
+    }
+    [data-testid="stVerticalBlock"]:has(.top-bar) {
+        gap: 0.25rem;
+    }
+    .top-bar {
+        margin-bottom: 0.35rem;
     }
     [data-testid="stMarkdownContainer"] p {
         overflow: visible;
         line-height: normal;
-        margin: 0.5rem 0;
-        padding: 0.25rem 0;
+        margin: 0;
+        padding: 0;
+    }
+    [data-testid="stHorizontalBlock"] {
+        margin-bottom: 0.35rem;
+        align-items: center;
     }
     [data-testid="stMarkdownContainer"],
     [data-testid="column"] {
@@ -131,10 +142,12 @@ top_left, top_right = st.columns([3, 1])
 with top_left:
     st.markdown(
         f"""
-        <span class="fetch-chip">
-            <span class="fetch-dot"></span>
-            Fetched&nbsp;·&nbsp;{fetch_time.strftime('%Y-%m-%d %H:%M:%S')}&nbsp;Tehran
-        </span>
+        <div class="top-bar">
+            <span class="fetch-chip">
+                <span class="fetch-dot"></span>
+                Fetched&nbsp;·&nbsp;{fetch_time.strftime('%Y-%m-%d %H:%M:%S')}&nbsp;Tehran
+            </span>
+        </div>
         """,
         unsafe_allow_html=True,
     )

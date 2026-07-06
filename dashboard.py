@@ -57,19 +57,6 @@ st.markdown(
         background: #34d399;
         box-shadow: 0 0 8px #34d399;
     }
-    .page-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #f7c948, #f0932b);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 0.2rem 0 0.1rem 0;
-    }
-    .page-sub {
-        color: #8b97ad;
-        font-size: 0.95rem;
-        margin-bottom: 1.5rem;
-    }
     .bubble-table-wrap {
         width: 100%;
         overflow-x: hidden;
@@ -158,13 +145,6 @@ with top_right:
         st.cache_data.clear()
         st.rerun()
 
-st.markdown('<div class="page-title">Gold Funds · NAV Bubble</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="page-sub">Premium (+) or discount (−) of market price relative to NAV, '
-    "sorted from highest to lowest.</div>",
-    unsafe_allow_html=True,
-)
-
 bubble = (
     df[["symbol", "nav_bubble", "last_price", "nav"]]
     .dropna(subset=["nav_bubble"])
@@ -174,17 +154,6 @@ bubble = (
 )
 bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
 
-m1, m2, m3 = st.columns(3)
-with m1:
-    st.metric("Highest", f"{bubble['nav_bubble'].max():+.2f}%")
-    st.caption(bubble.iloc[0]["symbol"])
-with m2:
-    st.metric("Lowest", f"{bubble['nav_bubble'].min():+.2f}%")
-    st.caption(bubble.iloc[-1]["symbol"])
-with m3:
-    st.metric("Average Bubble", f"{bubble['nav_bubble'].mean():+.2f}%")
-
-st.markdown("")
 
 def fmt_int(value: float) -> str:
     if pd.isna(value):

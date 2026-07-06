@@ -78,7 +78,7 @@ st.markdown(
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
     }
     .bubble-table th,
     .bubble-table td {
@@ -117,7 +117,10 @@ st.markdown(
 
 @st.cache_data(show_spinner=False)
 def load_conversion() -> pd.DataFrame:
-    return pd.read_csv(CONVERSION_PATH)
+    df = pd.read_csv(CONVERSION_PATH)
+    if "Fund" in df.columns and "symbol" not in df.columns:
+        df = df.rename(columns={"Fund": "symbol"})
+    return df
 
 
 @st.cache_data(show_spinner=False)
@@ -189,6 +192,13 @@ def fmt_int(value: float) -> str:
     return f"{value:,.0f}"
 
 
+def fmt_avg_bubble(value) -> str:
+    if pd.isna(value):
+        return ""
+    text = str(value).strip()
+    return text if text.endswith("%") else f"{text}%"
+
+
 def fmt_pct(value: float) -> str:
     if pd.isna(value):
         return ""
@@ -208,12 +218,13 @@ def build_table_html() -> str:
     headers = [
         "Fund",
         "Bubble %",
+        "Avg Bubble",
         "Last Price",
         "NAV",
-        "Gold Fund Ratio",
+        "GF Ratio",
         "EqGold Price",
     ]
-    col_widths = ["11%", "10%", "15%", "15%", "14%", "35%"]
+    col_widths = ["10%", "9%", "9%", "13%", "13%", "11%", "35%"]
     colgroup = "".join(f'<col style="width:{width};">' for width in col_widths)
     rows = []
     for _, row in bubble.iterrows():
@@ -222,6 +233,7 @@ def build_table_html() -> str:
             "<tr>"
             f'<td class="fund">{row["symbol"]}</td>'
             f'<td class="num" style="{bubble_style}">{fmt_pct(row["nav_bubble"])}</td>'
+            f'<td class="num">{fmt_avg_bubble(row["Average NAV Bubble"])}</td>'
             f'<td class="num">{fmt_int(row["last_price"])}</td>'
             f'<td class="num">{fmt_int(row["nav"])}</td>'
             f'<td class="num">{fmt_int(row["Gold Fund Ratio"])}</td>'

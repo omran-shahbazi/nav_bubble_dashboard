@@ -126,15 +126,42 @@ def parse_avg_bubble(value) -> float:
     return float(str(value).strip().rstrip("%"))
 
 
+def build_download_csv(df: pd.DataFrame) -> bytes:
+    download_df = df[
+        [
+            "symbol",
+            "nav_bubble",
+            "avg_bubble",
+            "bubble_deviation",
+            "last_price",
+            "nav",
+            "Gold Fund Ratio",
+            "eq_gold_price",
+        ]
+    ].rename(
+        columns={
+            "symbol": "Fund",
+            "nav_bubble": "Bubble %",
+            "avg_bubble": "Avg Bubble",
+            "bubble_deviation": "Bubble Deviation",
+            "last_price": "Last Price",
+            "nav": "NAV",
+            "Gold Fund Ratio": "GF Ratio",
+            "eq_gold_price": "EqGold Price",
+        }
+    )
+    return download_df.to_csv(index=False).encode("utf-8-sig")
+
+
 def build_table_html(df: pd.DataFrame) -> str:
     rows_html = []
     for _, row in df.iterrows():
-        avg_bubble = parse_avg_bubble(row["Average NAV Bubble"])
         rows_html.append(
             "<tr>"
             f"<td class='fund'>{html.escape(str(row['symbol']))}</td>"
             f"<td class='num' data-value='{row['nav_bubble']:.6f}'>{fmt_pct(row['nav_bubble'])}</td>"
-            f"<td class='num' data-value='{avg_bubble:.6f}'>{fmt_avg_bubble(row['Average NAV Bubble'])}</td>"
+            f"<td class='num' data-value='{row['avg_bubble']:.6f}'>{fmt_avg_bubble(row['Average NAV Bubble'])}</td>"
+            f"<td class='num' data-value='{row['bubble_deviation']:.6f}'>{fmt_pct(row['bubble_deviation'])}</td>"
             f"<td class='num' data-value='{row['last_price']:.0f}'>{fmt_int(row['last_price'])}</td>"
             f"<td class='num' data-value='{row['nav']:.0f}'>{fmt_int(row['nav'])}</td>"
             f"<td class='num' data-value='{row['Gold Fund Ratio']:.0f}'>{fmt_int(row['Gold Fund Ratio'])}</td>"
@@ -225,12 +252,13 @@ html, body {{
 <body>
 <table class="bubble-table" id="funds-table">
 <colgroup>
-<col style="width:12%">
+<col style="width:11%">
 <col style="width:10%">
 <col style="width:10%">
-<col style="width:14%">
-<col style="width:14%">
+<col style="width:16%">
 <col style="width:12%">
+<col style="width:12%">
+<col style="width:11%">
 <col style="width:18%">
 </colgroup>
 <thead>
@@ -238,10 +266,11 @@ html, body {{
 <th class="fund-header">Fund</th>
 <th class="sortable num-header" data-col="1">Bubble %<span class="sort-indicator"></span></th>
 <th class="sortable num-header" data-col="2">Avg Bubble<span class="sort-indicator"></span></th>
-<th class="sortable num-header" data-col="3">Last Price<span class="sort-indicator"></span></th>
-<th class="sortable num-header" data-col="4">NAV<span class="sort-indicator"></span></th>
-<th class="sortable num-header" data-col="5">GF Ratio<span class="sort-indicator"></span></th>
-<th class="sortable num-header" data-col="6">EqGold Price<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="3">Bubble Deviation<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="4">Last Price<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="5">NAV<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="6">GF Ratio<span class="sort-indicator"></span></th>
+<th class="sortable num-header" data-col="7">EqGold Price<span class="sort-indicator"></span></th>
 </tr>
 </thead>
 <tbody>
@@ -294,7 +323,18 @@ sortTable(1);
 df = get_data()
 fetch_time = df["created_at"].max().tz_convert(TZ)
 
-top_left, top_right = st.columns([3, 1])
+bubble = (
+    df[["symbol", "nav_bubble", "last_price", "nav"]]
+    .dropna(subset=["nav_bubble"])
+    .merge(load_conversion(), on="symbol", how="left")
+    .sort_values("nav_bubble", ascending=False)
+    .reset_index(drop=True)
+)
+bubble["avg_bubble"] = bubble["Average NAV Bubble"].map(parse_avg_bubble)
+bubble["bubble_deviation"] = bubble["nav_bubble"] - bubble["avg_bubble"]
+bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
+
+top_left, download_col, refresh_col = st.columns([3, 1, 1])
 with top_left:
     st.markdown(
         f"""
@@ -307,21 +347,20 @@ with top_left:
         """,
         unsafe_allow_html=True,
     )
-with top_right:
+with download_col:
+    st.download_button(
+        "⬇️ Download CSV",
+        data=build_download_csv(bubble),
+        file_name=f"gold_funds_{fetch_time.strftime('%Y%m%d_%H%M%S')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+with refresh_col:
     if st.button("🔄 Refresh", use_container_width=True):
         with st.spinner("Fetching latest data from TSETMC..."):
             collect_gold_funds_data().to_csv(CSV_PATH, index=False)
         st.cache_data.clear()
         st.rerun()
-
-bubble = (
-    df[["symbol", "nav_bubble", "last_price", "nav"]]
-    .dropna(subset=["nav_bubble"])
-    .merge(load_conversion(), on="symbol", how="left")
-    .sort_values("nav_bubble", ascending=False)
-    .reset_index(drop=True)
-)
-bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
 
 table_height = 42 + 31 * 32
 components.html(build_table_html(bubble), height=table_height, scrolling=False)

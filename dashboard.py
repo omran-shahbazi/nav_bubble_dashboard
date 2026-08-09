@@ -193,12 +193,17 @@ html, body {{
 }}
 .bubble-table th.sortable {{
     cursor: pointer;
+    position: relative;
+    padding-left: 20px;
 }}
 .bubble-table th.sortable:hover {{
     color: #cdd6e4;
 }}
 .bubble-table th .sort-indicator {{
-    margin-left: 4px;
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 0.65rem;
     color: #f7c948;
 }}

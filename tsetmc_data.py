@@ -1,3 +1,5 @@
+import os
+
 import requests
 import pandas as pd
 from pathlib import Path
@@ -98,6 +100,13 @@ def collect_gold_funds_data() -> pd.DataFrame:
     return pd.DataFrame(rows)[COL_ORDER]
 
 
+def write_csv_atomic(frame: pd.DataFrame, path: Path) -> None:
+    """Publish a complete CSV snapshot without exposing a partially written file."""
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    frame.to_csv(temporary_path, index=False)
+    os.replace(temporary_path, path)
+
+
 def append_daily_snapshot(snapshot: pd.DataFrame) -> pd.DataFrame:
     """Keep the latest snapshot for each fund on each Tehran calendar day."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -128,7 +137,7 @@ def append_daily_snapshot(snapshot: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     history["created_at"] = history["created_at"].dt.tz_convert(TZ)
-    history.to_csv(HISTORY_CSV_PATH, index=False)
+    write_csv_atomic(history, HISTORY_CSV_PATH)
     return history
 
 
@@ -138,7 +147,7 @@ def main() -> int:
         print("Incomplete gold fund data was collected; existing files were left unchanged")
         return 1
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(CSV_PATH, index=False)
+    write_csv_atomic(df, CSV_PATH)
     append_daily_snapshot(df)
     print(f"Gold funds data extracted successfully and saved to {CSV_PATH} ({len(df)} rows)")
     return 0

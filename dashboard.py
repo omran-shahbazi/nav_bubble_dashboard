@@ -16,6 +16,7 @@ from tsetmc_data import (
     append_daily_snapshot,
     collect_gold_funds_data,
     symbols,
+    write_csv_atomic,
 )
 
 CONVERSION_PATH = DATA_DIR / "gold_to_fund_conversion.csv"
@@ -197,7 +198,7 @@ def collect_finished_refresh() -> None:
         return
 
     if is_complete_snapshot(refreshed_data):
-        refreshed_data.to_csv(CSV_PATH, index=False)
+        write_csv_atomic(refreshed_data, CSV_PATH)
         append_daily_snapshot(refreshed_data)
         write_refresh_status(
             mode="live",
@@ -861,7 +862,7 @@ sortTable(2);
 </html>"""
 
 
-@st.fragment(run_every="10s")
+@st.fragment(run_every="2s")
 def render_dashboard() -> None:
     collect_finished_refresh()
     df = get_data()
@@ -917,6 +918,8 @@ def render_dashboard() -> None:
         manual_refresh = st.button("🔄 Refresh", use_container_width=True)
     if manual_refresh:
         start_background_refresh(force=True)
+    else:
+        start_background_refresh()
 
     status_class, status_label, status_detail = refresh_badge(fetch_time)
     with top_left:
@@ -939,10 +942,6 @@ def render_dashboard() -> None:
             mime="text/csv",
             use_container_width=True,
         )
-
-    # Render the current status first; start the next automatic fetch afterward
-    # so a completed snapshot can be shown as Live between refreshes.
-    start_background_refresh()
 
     table_height = 58 + len(bubble) * 58
     components.html(

@@ -1,4 +1,6 @@
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import pandas as pd
@@ -20,7 +22,12 @@ COL_ORDER = [
 ]
 
 TSETMC_BASE = "https://cdn.tsetmc.com/api"
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://www.tsetmc.com/",
+    "Origin": "https://www.tsetmc.com",
+}
 
 symbols = {
     "طلا": "46700660505281786" , "آلتون": "28374437855144739", "زر": "33254899395816171", "درنا": "17248898258246807", "گلدیس": "68376789401977331", "لیان": "6362118829011821",
@@ -67,36 +74,61 @@ FUND_NAMES = {
 }
 
 
+def _request_json(url: str) -> dict:
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=6)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as error:
+            last_error = error
+            if "Failed to resolve" in str(error) or "NameResolutionError" in type(error).__name__:
+                break
+            time.sleep(0.3 * (attempt + 1))
+    raise last_error or RuntimeError(f"Failed to fetch {url}")
+
+
 def _fetch_price_info(idx: str) -> dict:
     url = f"{TSETMC_BASE}/ClosingPrice/GetClosingPriceInfo/{idx}"
-    data = requests.get(url, headers=HEADERS, timeout=5).json()["closingPriceInfo"]
+    data = _request_json(url)["closingPriceInfo"]
     return {"last_price": data["pDrCotVal"]}
 
 
 def _fetch_nav(idx: str) -> float:
     url = f"{TSETMC_BASE}/Fund/GetETFByInsCode/{idx}"
-    resp = requests.get(url, headers=HEADERS, timeout=5)
-    resp.raise_for_status()
-    etf = resp.json()["etf"]
+    etf = _request_json(url)["etf"]
     return etf.get("pRedTran") or etf.get("pSubTran") or 0.0
+
+
+def _fetch_fund(key: str, idx: str) -> dict:
+    row = {"symbol": key, "fund_name": FUND_NAMES[key]}
+    row.update(_fetch_price_info(idx))
+    row["nav"] = _fetch_nav(idx)
+    row["nav_bubble"] = (row["last_price"] - row["nav"]) / row["nav"] * 100 if row["nav"] else None
+    return row
 
 
 def collect_gold_funds_data() -> pd.DataFrame:
     rows = []
-    for key, idx in symbols.items():
-        try:
-            row = {"symbol": key, "fund_name": FUND_NAMES[key], "created_at": datetime.now(TZ)}
-            row.update(_fetch_price_info(idx))
-            row["nav"] = _fetch_nav(idx)
-            row["nav_bubble"] = (row["last_price"] - row["nav"]) / row["nav"] * 100 if row["nav"] else None
-            rows.append(row)
-        except Exception as e:
-            print(f"Skipping {key} ({idx}): {e}")
-            # A partial market snapshot is not safe to publish as the latest view.
-            return pd.DataFrame(columns=COL_ORDER)
+    errors = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(_fetch_fund, key, idx): key for key, idx in symbols.items()}
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                rows.append(future.result())
+            except Exception as error:
+                errors.append(f"{key}: {error}")
+                print(f"Skipping {key}: {error}")
 
-    if not rows:
+    if errors or len(rows) != len(symbols):
+        # A partial market snapshot is not safe to publish as the latest view.
         return pd.DataFrame(columns=COL_ORDER)
+
+    fetched_at = datetime.now(TZ)
+    for row in rows:
+        row["created_at"] = fetched_at
     return pd.DataFrame(rows)[COL_ORDER]
 
 

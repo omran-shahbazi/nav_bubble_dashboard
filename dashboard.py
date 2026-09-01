@@ -1,6 +1,5 @@
 import json
 import html
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -130,6 +129,10 @@ def load_history(mtime: float) -> pd.DataFrame:
 
 
 def get_data() -> pd.DataFrame:
+    live = st.session_state.get("current_snapshot")
+    if isinstance(live, pd.DataFrame) and not live.empty:
+        return live
+
     if Path(CSV_PATH).exists() and Path(CSV_PATH).stat().st_size > 0:
         current = load_data(Path(CSV_PATH).stat().st_mtime)
         if not current.empty:
@@ -153,11 +156,6 @@ def get_history(seed_data: pd.DataFrame) -> pd.DataFrame:
     return load_history(HISTORY_CSV_PATH.stat().st_mtime)
 
 
-@st.cache_resource(show_spinner=False)
-def get_refresh_executor() -> ThreadPoolExecutor:
-    return ThreadPoolExecutor(max_workers=1, thread_name_prefix="tsetmc-refresh")
-
-
 def is_complete_snapshot(data: pd.DataFrame) -> bool:
     return len(data) == len(symbols) and data["symbol"].nunique() == len(symbols)
 
@@ -172,21 +170,19 @@ def read_refresh_status() -> dict:
 
 
 def write_refresh_status(**status) -> None:
-    REFRESH_STATUS_PATH.write_text(
-        json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-
-def collect_finished_refresh() -> None:
-    future = st.session_state.get("refresh_future")
-    if future is None or not future.done():
+    try:
+        REFRESH_STATUS_PATH.write_text(
+            json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
         return
 
-    del st.session_state["refresh_future"]
+
+def apply_tsetmc_refresh() -> tuple[pd.DataFrame | None, str | None]:
     now = datetime.now(TZ)
     previous = read_refresh_status()
     try:
-        refreshed_data = future.result()
+        refreshed_data = collect_gold_funds_data()
     except Exception as error:
         write_refresh_status(
             mode="cached",
@@ -194,9 +190,22 @@ def collect_finished_refresh() -> None:
             last_attempt_at=now.isoformat(),
             error=str(error),
         )
-        return
+        return None, str(error)
 
-    if is_complete_snapshot(refreshed_data):
+    if not is_complete_snapshot(refreshed_data):
+        message = "TSETMC did not return a complete 31-fund snapshot"
+        write_refresh_status(
+            mode="cached",
+            last_success_at=previous.get("last_success_at"),
+            last_attempt_at=now.isoformat(),
+            error=message,
+        )
+        return None, message
+
+    refreshed_data = refreshed_data.copy()
+    refreshed_data["created_at"] = pd.to_datetime(refreshed_data["created_at"], format="mixed")
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
         write_csv_atomic(refreshed_data, CSV_PATH)
         append_daily_snapshot(refreshed_data)
         write_refresh_status(
@@ -205,22 +214,10 @@ def collect_finished_refresh() -> None:
             last_attempt_at=now.isoformat(),
             funds=len(refreshed_data),
         )
-    else:
-        write_refresh_status(
-            mode="cached",
-            last_success_at=previous.get("last_success_at"),
-            last_attempt_at=now.isoformat(),
-            error="TSETMC did not return a complete 31-fund snapshot",
-        )
-
-
-def start_background_refresh() -> bool:
-    future = st.session_state.get("refresh_future")
-    if future is not None and not future.done():
-        return False
-
-    st.session_state["refresh_future"] = get_refresh_executor().submit(collect_gold_funds_data)
-    return True
+    except OSError:
+        # The live table can still update even if the container cannot persist files.
+        pass
+    return refreshed_data, None
 
 
 def is_today_snapshot(df: pd.DataFrame) -> bool:
@@ -235,21 +232,21 @@ def is_today_snapshot(df: pd.DataFrame) -> bool:
     return ts.date() == datetime.now(TZ).date()
 
 
+def snapshot_fetch_time(df: pd.DataFrame) -> pd.Timestamp:
+    ts = pd.to_datetime(df["created_at"], format="mixed", utc=True).max()
+    return ts.tz_convert(TZ)
+
+
 def refresh_badge(fetch_time: pd.Timestamp) -> tuple[str, str, str]:
-    snapshot_time = fetch_time.strftime('%Y-%m-%d %H:%M:%S')
-    if st.session_state.get("refresh_future") is not None:
-        return "cached", "Cached · Refreshing", f"نمایش آخرین snapshot معتبر · {snapshot_time}"
-
-    status = read_refresh_status()
-    last_success = status.get("last_success_at")
-    if status.get("mode") == "live" and last_success:
-        try:
-            age = datetime.now(TZ) - datetime.fromisoformat(last_success)
-            if age <= timedelta(seconds=LIVE_TTL_SECONDS):
-                return "live", "Live · TSETMC", f"۳۱ صندوق با موفقیت دریافت شد · {snapshot_time}"
-        except ValueError:
-            pass
-
+    ts = pd.Timestamp(fetch_time)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize(TZ)
+    else:
+        ts = ts.tz_convert(TZ)
+    snapshot_time = ts.strftime("%Y-%m-%d %H:%M:%S")
+    age = datetime.now(TZ) - ts.to_pydatetime()
+    if age <= timedelta(seconds=LIVE_TTL_SECONDS):
+        return "live", "Live · TSETMC", f"۳۱ صندوق با موفقیت دریافت شد · {snapshot_time}"
     return "cached", "Cached", f"آخرین snapshot: {snapshot_time}"
 
 
@@ -867,33 +864,34 @@ sortTable(2);
 </html>"""
 
 
-_poll_refresh = st.session_state.get("refresh_future") is not None
-
-
-@st.fragment(run_every="2s" if _poll_refresh else None)
 def render_dashboard() -> None:
-    had_in_flight = st.session_state.get("refresh_future") is not None
-    collect_finished_refresh()
-    still_in_flight = st.session_state.get("refresh_future") is not None
-    if had_in_flight and not still_in_flight:
-        st.rerun()
+    top_left, download_col, refresh_col = st.columns([3, 1, 1])
+    with refresh_col:
+        manual_refresh = st.button("🔄 Refresh", use_container_width=True)
 
     df = get_data()
-    if not st.session_state.get("stale_catchup_done"):
+    refresh_error = None
+    needs_catchup = not st.session_state.get("stale_catchup_done") and (
+        df.empty or not is_today_snapshot(df)
+    )
+    if needs_catchup:
         st.session_state["stale_catchup_done"] = True
-        if df.empty or not is_today_snapshot(df):
-            start_background_refresh()
-            st.rerun()
+
+    if manual_refresh or needs_catchup:
+        with st.spinner("Fetching latest data from TSETMC..."):
+            refreshed, refresh_error = apply_tsetmc_refresh()
+        if refreshed is not None:
+            st.session_state["current_snapshot"] = refreshed
+            df = refreshed
 
     if df.empty:
-        if st.button("🔄 Refresh"):
-            start_background_refresh()
-            st.rerun()
         st.warning("No local snapshot is available yet. Push Refresh to fetch data from TSETMC.")
+        if refresh_error:
+            st.error(refresh_error)
         return
 
     history = get_history(df)
-    fetch_time = df["created_at"].max().tz_convert(TZ)
+    fetch_time = snapshot_fetch_time(df)
     daily_history = (
         history.dropna(subset=["nav_bubble"])
         .sort_values(["symbol", "created_at"])
@@ -935,13 +933,6 @@ def render_dashboard() -> None:
     bubble["eq_gold_price"] = bubble["last_price"] * bubble["Gold Fund Ratio"]
     cell_flashes = changed_cell_classes(bubble)
 
-    top_left, download_col, refresh_col = st.columns([3, 1, 1])
-    with refresh_col:
-        manual_refresh = st.button("🔄 Refresh", use_container_width=True)
-    if manual_refresh:
-        start_background_refresh()
-        st.rerun()
-
     status_class, status_label, status_detail = refresh_badge(fetch_time)
     with top_left:
         st.markdown(
@@ -963,6 +954,8 @@ def render_dashboard() -> None:
             mime="text/csv",
             use_container_width=True,
         )
+    if refresh_error:
+        st.error(refresh_error)
 
     table_height = 58 + len(bubble) * 58
     components.html(

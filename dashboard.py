@@ -1,6 +1,6 @@
 import json
 import html
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -223,14 +223,16 @@ def start_background_refresh() -> bool:
     return True
 
 
-def run_manual_refresh() -> None:
-    start_background_refresh()
-    future = st.session_state.get("refresh_future")
-    if future is not None:
-        with st.spinner("Fetching latest data from TSETMC..."):
-            wait([future])
-        collect_finished_refresh()
-    st.rerun()
+def is_today_snapshot(df: pd.DataFrame) -> bool:
+    latest = df["created_at"].max()
+    if pd.isna(latest):
+        return False
+    ts = pd.Timestamp(latest)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize(TZ)
+    else:
+        ts = ts.tz_convert(TZ)
+    return ts.date() == datetime.now(TZ).date()
 
 
 def refresh_badge(fetch_time: pd.Timestamp) -> tuple[str, str, str]:
@@ -865,13 +867,28 @@ sortTable(2);
 </html>"""
 
 
-@st.fragment
+_poll_refresh = st.session_state.get("refresh_future") is not None
+
+
+@st.fragment(run_every="2s" if _poll_refresh else None)
 def render_dashboard() -> None:
+    had_in_flight = st.session_state.get("refresh_future") is not None
     collect_finished_refresh()
+    still_in_flight = st.session_state.get("refresh_future") is not None
+    if had_in_flight and not still_in_flight:
+        st.rerun()
+
     df = get_data()
+    if not st.session_state.get("stale_catchup_done"):
+        st.session_state["stale_catchup_done"] = True
+        if df.empty or not is_today_snapshot(df):
+            start_background_refresh()
+            st.rerun()
+
     if df.empty:
         if st.button("🔄 Refresh"):
-            run_manual_refresh()
+            start_background_refresh()
+            st.rerun()
         st.warning("No local snapshot is available yet. Push Refresh to fetch data from TSETMC.")
         return
 
@@ -922,7 +939,8 @@ def render_dashboard() -> None:
     with refresh_col:
         manual_refresh = st.button("🔄 Refresh", use_container_width=True)
     if manual_refresh:
-        run_manual_refresh()
+        start_background_refresh()
+        st.rerun()
 
     status_class, status_label, status_detail = refresh_badge(fetch_time)
     with top_left:

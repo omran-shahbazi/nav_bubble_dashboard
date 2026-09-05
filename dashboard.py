@@ -1,6 +1,6 @@
 import json
 import html
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -22,8 +22,6 @@ from tsetmc_data import (
 
 CONVERSION_PATH = DATA_DIR / "gold_to_fund_conversion.csv"
 REFRESH_STATUS_PATH = DATA_DIR / "refresh_status.json"
-AUTO_REFRESH_SECONDS = 20
-UI_POLL_SECONDS = 5
 LIVE_TTL_SECONDS = 180
 FLASH_FIELDS = (
     "nav_bubble",
@@ -229,19 +227,23 @@ def collect_finished_refresh() -> None:
         )
 
 
-def start_background_refresh(force: bool = False) -> bool:
+def start_background_refresh() -> bool:
     future = st.session_state.get("refresh_future")
     if future is not None and not future.done():
         return False
 
-    now = datetime.now(TZ)
-    last_started = st.session_state.get("last_refresh_started")
-    if not force and last_started and (now - last_started).total_seconds() < AUTO_REFRESH_SECONDS:
-        return False
-
     st.session_state["refresh_future"] = get_refresh_executor().submit(collect_gold_funds_data)
-    st.session_state["last_refresh_started"] = now
     return True
+
+
+def run_manual_refresh() -> None:
+    start_background_refresh()
+    future = st.session_state.get("refresh_future")
+    if future is not None:
+        with st.spinner("Fetching latest data from TSETMC..."):
+            wait([future])
+        collect_finished_refresh()
+    st.rerun()
 
 
 def refresh_badge(fetch_time: pd.Timestamp) -> tuple[str, str, str]:
@@ -876,12 +878,14 @@ sortTable(2);
 </html>"""
 
 
-@st.fragment(run_every=f"{UI_POLL_SECONDS}s")
+@st.fragment
 def render_dashboard() -> None:
     collect_finished_refresh()
     df = get_data()
     if df.empty:
-        st.warning("No local snapshot is available yet. TSETMC is being checked in the background.")
+        if st.button("🔄 Refresh"):
+            run_manual_refresh()
+        st.warning("No local snapshot is available yet. Push Refresh to fetch data from TSETMC.")
         return
 
     history = get_history(df)
@@ -931,9 +935,7 @@ def render_dashboard() -> None:
     with refresh_col:
         manual_refresh = st.button("🔄 Refresh", use_container_width=True)
     if manual_refresh:
-        start_background_refresh(force=True)
-    else:
-        start_background_refresh()
+        run_manual_refresh()
 
     status_class, status_label, status_detail = refresh_badge(fetch_time)
     with top_left:

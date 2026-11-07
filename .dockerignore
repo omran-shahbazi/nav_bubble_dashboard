@@ -1,6 +1,11 @@
+.git/
+.gitignore
+.gitlab-ci.yml
 .venv/
 __pycache__/
 *.pyc
-.git/
-.gitignore
+*.tmp
 .DS_Store
+run.command
+make-zip.command
+static/live.json

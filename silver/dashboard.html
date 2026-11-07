@@ -1,0 +1,985 @@
+<style>
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Vazirmatn", Tahoma, sans-serif;
+    color: #cdd6e4;
+}
+#app, #tip, .trend-overlay { direction: rtl; }
+a { color: #93c5fd; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.unit { font-size: 0.62em; font-weight: 600; color: #8b97ad; margin-right: 4px; }
+
+/* ---------- top boxes ---------- */
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.kpi {
+    background: #1c2433;
+    border: 1px solid #2e3a4f;
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    min-width: 0;
+}
+.kpi:hover { border-color: #475569; }
+.kpi.tip-active { border-color: #f7c948; }
+.kpi-label { color: #8b97ad; font-size: 0.74rem; font-weight: 600; }
+.kpi-value {
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+}
+.kpi-sub { margin-top: 4px; color: #8b97ad; font-size: 0.66rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-value.pos { color: #f87171; }
+.kpi-value.neg { color: #4ade80; }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- bubble chart ---------- */
+.panel {
+    background: #1c2433;
+    border: 1px solid #2e3a4f;
+    border-radius: 10px;
+    padding: 12px 14px 8px;
+    margin-bottom: 12px;
+}
+.panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.panel-title { font-weight: 700; font-size: 0.9rem; color: #e2e8f0; }
+.panel-meta { color: #8b97ad; font-size: 0.7rem; }
+.windows { display: inline-flex; gap: 4px; }
+.windows button {
+    border: 1px solid #2e3a4f;
+    background: #0e1117;
+    color: #8b97ad;
+    font: 600 0.72rem "Vazirmatn", Tahoma, sans-serif;
+    padding: 5px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.windows button:hover { color: #cdd6e4; }
+.windows button.active { background: #cbd5e1; border-color: #cbd5e1; color: #0f172a; }
+.chart-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.72rem; color: #8b97ad; margin: 2px 0 4px; }
+.chart-stats b { color: #e2e8f0; font-weight: 600; }
+/* Time runs left to right on the charts, as on standard financial charts. */
+#bubble-chart { display: block; width: 100%; height: 360px; cursor: crosshair; direction: ltr; }
+#bubble-chart .grid { stroke: #2e3a4f; stroke-width: 1; }
+#bubble-chart .zero { stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 4; }
+#bubble-chart .axis-label { fill: #8b97ad; font: 11px "Vazirmatn", Tahoma, sans-serif; }
+#bubble-chart .line { fill: none; stroke: #e2e8f0; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#bubble-chart .avg { stroke: #f7c948; stroke-width: 1; stroke-dasharray: 6 4; }
+#bubble-chart .cross { stroke: #94a3b8; stroke-width: 1; }
+#bubble-chart .dot { fill: #f1f5f9; stroke: #0e1117; stroke-width: 2; }
+
+/* ---------- table (same as the gold dashboard) ---------- */
+.table-scroll { overflow-x: auto; overflow-y: hidden; }
+.bubble-table {
+    width: 100%;
+    min-width: 1230px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}
+.bubble-table th, .bubble-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #2e3a4f;
+    border-left: 1px solid #2e3a4f;
+    vertical-align: middle;
+}
+.bubble-table th:last-child, .bubble-table td:last-child { border-left: none; }
+.bubble-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #1c2433;
+    color: #8b97ad;
+    font-weight: 600;
+    white-space: nowrap;
+    user-select: none;
+    direction: ltr;  /* column names stay in English */
+}
+.bubble-table th.fund-header, .bubble-table td.fund { text-align: right; }
+.bubble-table td.fund { direction: rtl; }
+.bubble-table th.fund-header { right: 0; z-index: 4; }
+.bubble-table td.fund {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: -2px 0 4px rgba(15, 23, 42, 0.25);
+    cursor: pointer;
+}
+.bubble-table th.num-header, .bubble-table td.num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.bubble-table td.num { cursor: pointer; direction: ltr; }
+.bubble-table td.num:hover, .bubble-table td.fund:hover { outline: 1px dashed #94a3b8; outline-offset: -2px; }
+.bubble-table td.tip-active, .bubble-table td.tip-active:hover { outline: 2px solid #f7c948; outline-offset: -2px; }
+.bubble-table td.sparkline-cell { padding: 4px 6px; text-align: center; direction: ltr; cursor: zoom-in; }
+.sparkline { display: block; width: 100px; height: 30px; margin: 0 auto; border-radius: 4px; background: rgba(255, 255, 255, 0.88); }
+.sparkline-zero { stroke: #94a3b8; stroke-width: 0.7; stroke-dasharray: 2 2; }
+.sparkline-empty { color: #94a3b8; }
+.bubble-table th.sortable { cursor: pointer; position: relative; padding-left: 20px; }
+.bubble-table th.sortable:hover { color: #cdd6e4; }
+.bubble-table th .sort-indicator {
+    position: absolute; left: 7px; top: 50%; transform: translateY(-50%);
+    font-size: 0.65rem; color: #f7c948;
+}
+.bubble-table tbody tr.odd { background: #ffffff; color: #111827; }
+.bubble-table tbody tr.odd td.fund { background: #ffffff; }
+.bubble-table tbody tr.even { background: #3b82f6; color: #ffffff; }
+.bubble-table tbody tr.even td.fund { background: #3b82f6; }
+.bubble-table:not(.show-young) tbody tr.young { display: none; }
+.young-badge { display: inline-block; margin-right: 4px; padding: 0 5px; border-radius: 999px; font-size: 0.55rem; font-weight: 600; background: #fbbf24; color: #111827; vertical-align: 0.1em; }
+.table-foot { margin: 6px 0 0; font-size: 0.72rem; color: #8b97ad; }
+.table-foot button { border: 1px solid #2e3a4f; background: #0e1117; color: #cdd6e4; font: 600 0.72rem "Vazirmatn", Tahoma, sans-serif; padding: 5px 12px; border-radius: 999px; cursor: pointer; margin-left: 8px; }
+.table-foot button:hover { border-color: #cbd5e1; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 8px 0 0; font-size: 0.7rem; color: #8b97ad; }
+.legend .st-badge { margin: 0 0 0 4px; }
+.kpi-sub.stale { color: #fbbf24; }
+.status-strip { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 0.75rem; color: #cdd6e4; margin: 0 0 8px; }
+.status-strip .muted { color: #8b97ad; }
+.st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 0 0 5px; vertical-align: 0.05em; background: #94a3b8; }
+.st-dot.open { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+.st-dot.warn { background: #f59e0b; }
+.st-dot.bad { background: #ef4444; }
+.fund-symbol .st-dot { width: 7px; height: 7px; margin: 0 5px 0 0; }
+.st-badge { display: inline-block; margin-right: 4px; padding: 0 5px; border-radius: 999px; font-size: 0.55rem; font-weight: 600; vertical-align: 0.1em; }
+.st-badge.warn { background: #f59e0b; color: #111827; }
+.st-badge.bad { background: #ef4444; color: #ffffff; }
+.fund-symbol { display: block; font-weight: 700; font-size: 0.78rem; line-height: 1.3; }
+.fund-name {
+    display: block; margin-top: 2px; font-size: 0.56rem; font-weight: 400; line-height: 1.35;
+    opacity: 0.78; white-space: normal; overflow-wrap: anywhere;
+}
+.pin-toggle {
+    border: 0; padding: 0 0 0 4px; background: transparent; color: inherit; cursor: pointer;
+    font: inherit; font-size: 1rem; line-height: 1; vertical-align: -0.08em; opacity: 0.55;
+}
+.pin-toggle.is-pinned { color: #f7c948; opacity: 1; }
+.thin { opacity: 0.55; }
+
+/* ---------- trend overlay (same as gold) ---------- */
+.trend-overlay {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 16px; background: rgba(15, 23, 42, 0.72);
+}
+.trend-dialog {
+    position: relative; width: min(760px, 100%); padding: 18px;
+    border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+}
+.trend-dialog-title { margin: 0 0 12px 36px; color: #0f172a; font-size: 1rem; font-weight: 700; }
+.trend-chart-svg { display: block; width: 100%; height: 320px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; direction: ltr; }
+.trend-chart-svg .chart-grid { stroke: #e2e8f0; stroke-width: 1; }
+.trend-chart-svg .chart-zero { stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.trend-chart-svg .chart-axis { stroke: #94a3b8; stroke-width: 1; }
+.trend-chart-svg .chart-line { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.trend-chart-svg .chart-label { fill: #475569; font: 12px "Vazirmatn", Tahoma, sans-serif; }
+.trend-chart-svg .chart-axis-title { fill: #334155; font: 600 12px "Vazirmatn", Tahoma, sans-serif; }
+.trend-dialog-meta { margin: -4px 0 12px; color: #64748b; font-size: 0.72rem; }
+.trend-close {
+    position: absolute; top: 10px; left: 10px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+    background: #e2e8f0; color: #334155; cursor: pointer; font-size: 1.2rem; line-height: 1;
+}
+.trend-close:hover { background: #cbd5e1; }
+
+/* ---------- explainer box: opens on click, anchored to the value ---------- */
+#tip {
+    position: fixed; z-index: 50; display: none;
+    width: 380px; max-width: calc(100vw - 16px);
+    background: #0b1220; border: 1px solid #475569; border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    padding: 11px 13px; font-size: 0.72rem; line-height: 1.7; color: #cbd5e1;
+}
+#tip.pinned { border-color: #f7c948; }
+#tip .t-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+#tip .t-title { font-weight: 700; color: #f1f5f9; font-size: 0.8rem; }
+#tip .t-close { border: 0; background: transparent; color: #8b97ad; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
+#tip .t-close:hover { color: #f1f5f9; }
+#tip .t-value { color: #f7c948; font-size: 0.9rem; font-weight: 700; margin: 2px 0 6px; }
+#tip .t-sec { margin-top: 8px; color: #8b97ad; font-weight: 700; font-size: 0.66rem; }
+#tip .t-formula {
+    font-size: 0.7rem;
+    background: #1c2433; border: 1px solid #2e3a4f; border-radius: 6px; padding: 5px 7px; margin-top: 2px;
+    white-space: pre-wrap; color: #e2e8f0;
+}
+#tip table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+#tip td { padding: 1px 0; vertical-align: top; }
+#tip td.k { color: #8b97ad; padding-left: 10px; }
+#tip td.v { text-align: left; color: #e2e8f0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#tip ul.t-src { margin: 2px 0 0; padding-right: 16px; padding-left: 0; }
+#tip ul.t-src li { margin: 1px 0; overflow-wrap: anywhere; }
+#tip ul.t-src a { font-weight: 600; }
+#tip .t-note { margin-top: 7px; color: #94a3b8; font-size: 0.68rem; text-align: justify; }
+#tip .t-dim { color: #8b97ad; }
+
+</style>
+
+<div id="app">
+    <div class="status-strip" id="status-strip"></div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="panel">
+        <div class="panel-head">
+            <div>
+                <div class="panel-title">حباب گواهی نقره بورس کالا نسبت به قیمت جهانی</div>
+                <div class="panel-meta" id="chart-meta"></div>
+            </div>
+            <div class="windows" id="windows">
+                <button data-days="30">۱ ماه</button>
+                <button data-days="90" class="active">۳ ماه</button>
+                <button data-days="180">۶ ماه</button>
+                <button data-days="365">۱ سال</button>
+                <button data-days="0">همه</button>
+            </div>
+        </div>
+        <div class="chart-stats" id="chart-stats"></div>
+        <svg id="bubble-chart" role="img" aria-label="روند حباب گواهی نقره بورس کالا"></svg>
+    </div>
+
+    <div class="table-scroll">
+        <table class="bubble-table" id="funds-table">
+            <colgroup>
+                <col style="width:220px"><col style="width:112px"><col style="width:110px"><col style="width:145px">
+                <col style="width:145px"><col style="width:125px"><col style="width:125px"><col style="width:100px"><col style="width:150px">
+            </colgroup>
+            <thead><tr>
+                <th class="fund-header">Fund</th>
+                <th>Bubble Trend (50D)</th>
+                <th class="sortable num-header" data-col="2">Bubble %<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="3">Avg Bubble(50D)<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="4">Bubble Deviation (50D)<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="5">Last Price<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="6">NAV<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="7">SF Ratio<span class="sort-indicator"></span></th>
+                <th class="sortable num-header" data-col="8">EqSilver Price<span class="sort-indicator"></span></th>
+            </tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <div class="table-foot" id="table-foot"></div>
+    <div class="legend">
+        <span><span class="st-dot open"></span>در حال معامله (معامله در ۱۰ دقیقه اخیر)</span>
+        <span><span class="st-dot"></span>امروز معامله شده ولی نه در ۱۰ دقیقه اخیر، یا بازار تعطیل است</span>
+        <span><span class="st-dot warn"></span><span class="st-badge warn">بدون معامله</span> بازار باز بوده ولی نماد امروز معامله نشده</span>
+        <span><span class="st-dot bad"></span><span class="st-badge bad">متوقف</span> نماد در TSETMC متوقف یا ممنوع است</span>
+    </div>
+
+</div>
+<div id="tip"></div>
+
+<script>
+let SNAP = __SNAPSHOT__;
+const CFG = __CONFIG__;
+const U = CFG.urls;
+
+// The Persian font is served with the app (static/fonts), so it also loads where Google Fonts is blocked.
+try {
+    const font = new URL("app/static/fonts/Vazirmatn.woff2", window.parent.location.href).href;
+    const style = document.createElement("style");
+    style.textContent = `@font-face { font-family: "Vazirmatn"; src: url("${font}") format("woff2"); font-weight: 100 900; font-display: swap; }`;
+    document.head.appendChild(style);
+} catch {}
+
+// ------------------------------------------------------------------ helpers
+// Numbers are shown with Persian digits and separators; values used for sorting stay plain numbers.
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const fa = (s) => String(s ?? "").replace(/\d/g, (d) => FA_DIGITS[d]);
+const ltr = (s) => "⁦" + s + "⁩";  // keeps signs and Latin text in order inside Persian text
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+const faNum = (v, d) => fa(Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }))
+    .replace(/,/g, "٬").replace(/\./g, "٫");
+const signed = (v, s) => (v < 0 ? ltr("-" + s) : s);
+const fmtInt = (v) => (isNum(v) ? signed(v, faNum(Math.round(v), 0)) : "—");
+const fmtDec = (v, d = 2) => (isNum(v) ? signed(v, faNum(v, d)) : "—");
+const fmtPct = (v, sign = false, d = 2) => (isNum(v) ? ltr((v < 0 ? "-" : sign && v > 0 ? "+" : "") + faNum(v, d) + "٪") : "—");
+const irr = (v) => (isNum(v) ? fmtInt(v) + " ریال" : "—");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hms = (h) => { if (!h) return ""; const s = String(h).padStart(6, "0"); return `${s.slice(0, 2)}:${s.slice(2, 4)}:${s.slice(4, 6)}`; };
+const dev = (d) => { if (!d) return ""; const s = String(d); return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`; };
+const isUrl = (s) => /^https?:\/\//.test(s || "");
+const src = (label, url, detail = "") => [label, url, detail];  // one source line: linked name + optional detail
+
+// Dates are stored as Gregorian YYYY-MM-DD and shown in the Jalali calendar.
+const JALALI = new Intl.DateTimeFormat("en-US-u-ca-persian", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+function jd(iso) {
+    if (!iso) return "—";
+    const d = new Date(String(iso).slice(0, 10) + "T12:00:00Z");
+    if (Number.isNaN(d.getTime())) return fa(iso);
+    const p = Object.fromEntries(JALALI.formatToParts(d).map((x) => [x.type, x.value]));
+    return fa(`${p.year}/${p.month}/${p.day}`);
+}
+const jdt = (s) => (s ? `${jd(s)} ${fa(String(s).slice(11, 19))}` : "—");         // "YYYY-MM-DD HH:MM:SS"
+const tradeAt = (deven, heven) => (deven ? `${jd(dev(deven))} ${fa(hms(heven))}` : "—");
+const days = (n) => `${fa(n)} روز`;
+
+// ------------------------------------------------------------------ explainer box
+// Every explained value registers a spec; elements reference it with data-tip.
+const TIPS = [];
+function tip(spec) { TIPS.push(spec); return TIPS.length - 1; }
+function renderTip(t) {
+    let html = `<div class="t-head"><div class="t-title">${esc(t.title)}</div><button class="t-close" type="button" aria-label="بستن">×</button></div>`;
+    if (t.value) html += `<div class="t-value">${esc(t.value)}</div>`;
+    if (t.formula) html += `<div class="t-sec">فرمول</div><div class="t-formula">${esc(t.formula)}</div>`;
+    if (t.inputs && t.inputs.length) {
+        html += `<div class="t-sec">ورودی‌ها</div><table>` +
+            t.inputs.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + `</table>`;
+    }
+    if (t.sources && t.sources.length) {
+        html += `<div class="t-sec">منبع</div><ul class="t-src">` + t.sources.map(([label, url, detail]) =>
+            `<li>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : esc(label)}` +
+            `${detail ? `<span class="t-dim"> · ${esc(detail)}</span>` : ""}</li>`).join("") + `</ul>`;
+    }
+    if (t.note) html += `<div class="t-note">${esc(t.note)}</div>`;
+    return html;
+}
+
+const tipEl = document.getElementById("tip");
+let tipAnchor = null, pinned = false;
+
+function visibleBand() {
+    // The iframe is as tall as its content; only part of it is on screen in the parent page.
+    try {
+        const r = window.frameElement.getBoundingClientRect();
+        return [Math.max(0, -r.top), Math.min(window.innerHeight, window.parent.innerHeight - r.top)];
+    } catch { return [0, window.innerHeight]; }
+}
+function positionTip(rect) {
+    const [top, bottom] = visibleBand();
+    const w = tipEl.offsetWidth, h = tipEl.offsetHeight, gap = 6;
+    let x = rect.left + rect.width / 2 - w / 2;
+    x = Math.max(6, Math.min(x, window.innerWidth - w - 6));
+    let y = rect.bottom + gap;
+    if (y + h > bottom - 6 && rect.top - gap - h >= top + 6) y = rect.top - gap - h;
+    y = Math.max(top + 6, Math.min(y, bottom - h - 6));
+    tipEl.style.left = x + "px";
+    tipEl.style.top = y + "px";
+}
+function showTip(spec, anchorEl, rect) {
+    if (tipAnchor && tipAnchor !== anchorEl) tipAnchor.classList?.remove("tip-active");
+    tipAnchor = anchorEl;
+    anchorEl.classList?.add("tip-active");
+    tipEl.innerHTML = renderTip(spec);
+    tipEl.style.display = "block";
+    tipEl.querySelector(".t-close").addEventListener("click", () => hideTip(true));
+    positionTip(rect || anchorEl.getBoundingClientRect());
+}
+function hideTip(force = false) {
+    if (pinned && !force) return;
+    pinned = false;
+    tipEl.classList.remove("pinned");
+    tipEl.style.display = "none";
+    tipAnchor?.classList?.remove("tip-active");
+    tipAnchor = null;
+}
+
+// Explainer boxes open only on click, so moving the mouse across the page never pops anything up.
+// (The bubble chart keeps its hover readout; see the chart code below.)
+document.addEventListener("click", (ev) => {
+    if (tipEl.contains(ev.target)) return;
+    const el = ev.target.closest("[data-tip]");
+    if (el && !ev.target.closest(".pin-toggle") && !el.classList.contains("sparkline-cell")) {
+        if (el === tipAnchor && pinned) { hideTip(true); return; }  // second click on the same value closes it
+        showTip(TIPS[Number(el.dataset.tip)], el);
+        pinned = true;
+        tipEl.classList.add("pinned");
+        return;
+    }
+    if (!ev.target.closest("#bubble-chart")) hideTip(true);
+});
+
+// ------------------------------------------------------------------ top boxes
+const OZ = CFG.troy_ounce_grams;
+const OZ_FA = faNum(OZ, 4);
+const SRC_LIGHTER = src("Lighter", U.lighter_page, "آخرین معامله XAG");
+const SRC_WALLEX = src("والکس", U.wallex_page, "آخرین معامله تتر");
+// Everything below is re-rendered from these whenever a newer snapshot arrives (see "live updates").
+let M, xag, usdt, ime, usdtIrr, SRC_IME, imeStale, HIST, FUNDS;
+function setData(snap) {
+    SNAP = snap;
+    M = SNAP.market || {};
+    xag = M.xag || {}; usdt = M.usdt || {}; ime = M.ime || {};
+    usdtIrr = isNum(usdt.price) ? usdt.price * 10 : null;
+    SRC_IME = ime.stale ? src("بورس کالا", U.ime_hist_page, "آخرین معامله آخرین جلسه")
+                        : src("بورس کالا", U.ime_page, "تابلوی لحظه‌ای");
+    imeStale = ime.stale
+        ? `امروز هنوز معامله‌ای انجام نشده است؛ آخرین معامله جلسه ${fa(ime.stale_persian_date) || jd(ime.stale_date)} نمایش داده می‌شود و با نخستین معامله امروز به‌روز می‌شود.`
+        : "";
+    HIST = SNAP.bubble_history || [];
+    FUNDS = SNAP.funds || [];
+}
+
+function kpi(label, valueHtml, sub, spec, cls = "", subCls = "") {
+    return `<div class="kpi" data-tip="${tip(spec)}"><div class="kpi-label">${label}</div>` +
+        `<div class="kpi-value ${cls}">${valueHtml}</div><div class="kpi-sub ${subCls}">${sub}</div></div>`;
+}
+// ------------------------------------------------------------------ market status
+// Commodity funds keep trading after TSETMC's main session closes, so a fund's own latest
+// trade (not the market-wide flag) decides whether it is trading now.
+const RECENT_TRADE_MINUTES = 10;
+const MARKET_FA = { "Open": "باز", "Closed": "بسته", "Pre-opening": "پیش‌گشایش" };
+const TODAY = () => (SNAP.fetched_at || "").slice(0, 10);
+const secs = (hhmmss) => { const v = String(hhmmss || "").padStart(6, "0"); return +v.slice(0, 2) * 3600 + +v.slice(2, 4) * 60 + +v.slice(4, 6); };
+const nowSecs = () => secs((SNAP.fetched_at || "").slice(11).replace(/:/g, ""));
+function marketStatus() {
+    const t = M.tse;
+    if (!t) return { cls: "", text: "بورس تهران: وضعیت در دسترس نیست" };
+    if (t.session_date !== TODAY())
+        return { cls: "warn", text: `بورس تهران: <b>امروز جلسه معاملاتی ندارد</b> <span class="muted">· تعطیل رسمی یا آخر هفته · آخرین جلسه ${jd(t.session_date)}</span>` };
+    return { cls: t.label === "Open" ? "open" : "", text: `بورس تهران (بازار اصلی): <b>${esc(MARKET_FA[t.label] || t.title || t.label)}</b>` };
+}
+function fundsStatus() {
+    const traded = FUNDS.filter((f) => f.live_price?.deven && dev(f.live_price.deven) === TODAY());
+    if (!traded.length) return { cls: "", text: "صندوق‌های نقره: <b>امروز معامله‌ای نشده است</b>" };
+    const last = Math.max(...traded.map((f) => secs(f.live_price.heven)));
+    const active = nowSecs() - last <= RECENT_TRADE_MINUTES * 60;
+    const hhmm = `${String(Math.floor(last / 3600)).padStart(2, "0")}:${String(Math.floor(last / 60) % 60).padStart(2, "0")}`;
+    return { cls: active ? "open" : "", text: `صندوق‌های نقره: <b>${active ? "در حال معامله" : "بدون معامله اخیر"}</b> <span class="muted">· آخرین معامله ${fa(hhmm)} · ${fa(traded.length)} از ${fa(FUNDS.length)} صندوق امروز معامله شده</span>` };
+}
+function renderStatus() {
+    const tse = marketStatus(), funds = fundsStatus();
+    const imeText = !ime.price ? "گواهی نقره بورس کالا: وضعیت در دسترس نیست"
+        : ime.stale ? `گواهی نقره بورس کالا: <b>امروز هنوز معامله نشده</b> <span class="muted">· آخرین جلسه ${fa(ime.stale_persian_date) || jd(ime.stale_date)}</span>`
+        : `گواهی نقره بورس کالا: <b>امروز معامله شده</b>${ime.time ? ` <span class="muted">· آخرین معامله ${fa(ime.time)}</span>` : ""}`;
+    document.getElementById("status-strip").innerHTML =
+        `<span><span class="st-dot ${tse.cls}"></span>${tse.text}</span>` +
+        `<span><span class="st-dot ${funds.cls}"></span>${funds.text}</span>` +
+        `<span><span class="st-dot ${ime.stale ? "warn" : ime.price ? "open" : ""}"></span>${imeText}</span>`;
+}
+
+// Trading status of one fund: halted symbols, and funds that did not trade on a trading day, stand out.
+function fundStatus(f) {
+    const lp = f.live_price || {};
+    const lastTrade = lp.deven ? dev(lp.deven) : null;
+    const sessionToday = (M.tse || {}).session_date === TODAY();
+    const at = fa(hms(lp.heven).slice(0, 5));
+    if (lp.state && lp.state !== "A")
+        return { dot: "bad", badge: "متوقف", text: `متوقف در TSETMC (${lp.state_title || lp.state})` };
+    if (lastTrade === TODAY())
+        return nowSecs() - secs(lp.heven) <= RECENT_TRADE_MINUTES * 60
+            ? { dot: "open", badge: "", text: `در حال معامله · آخرین معامله ${at}` }
+            : { dot: "", badge: "", text: `امروز معامله شده · آخرین معامله ${at}` };
+    if (sessionToday && lastTrade)
+        return { dot: "warn", badge: "بدون معامله", text: `مجاز است ولی امروز معامله نشده (آخرین معامله ${jd(lastTrade)})` };
+    return { dot: "", badge: "", text: `بازار امروز تعطیل است · آخرین معامله ${jd(lastTrade)}` };
+}
+
+function renderKpis() {
+document.getElementById("kpis").innerHTML = [
+    kpi("نقره جهانی (XAG/USD)", "$" + fmtDec(xag.price, 3), "Lighter · هر اونس تروا", {
+        title: "قیمت جهانی نقره (هر اونس تروا)",
+        value: "$" + fmtDec(xag.price, 4),
+        formula: "XAG/USD = آخرین قیمت معامله در Lighter (بازار ۹۳)",
+        inputs: [["واحد", "دلار برای هر اونس تروا نقره خالص"], ["زمان دریافت", jdt(SNAP.fetched_at)]],
+        sources: [SRC_LIGHTER],
+    }),
+    kpi("دلار (تتر)", fmtInt(usdtIrr) + '<span class="unit">ریال</span>', "والکس · قیمت تومانی × ۱۰", {
+        title: "نرخ دلار (تتر در والکس)",
+        value: irr(usdtIrr),
+        formula: "دلار (ریال) = آخرین قیمت تتر در والکس (تومان) × ۱۰",
+        inputs: [["آخرین معامله", irr(usdtIrr)], ["بهترین قیمت خرید", irr(usdt.bid * 10)], ["بهترین قیمت فروش", irr(usdt.ask * 10)]],
+        sources: [SRC_WALLEX],
+    }),
+    kpi("نقره جهانی / گرم (۹۹۹)", fmtInt(M.global_gram) + '<span class="unit">ریال</span>', `XAG ÷ ${OZ_FA} × دلار`, {
+        title: "قیمت جهانی هر گرم نقره خالص",
+        value: irr(M.global_gram),
+        formula: `نقره جهانی هر گرم = XAG ÷ ${OZ_FA} × دلار (ریال)`,
+        inputs: [["XAG (دلار بر اونس)", fmtDec(xag.price, 4)], ["گرم در هر اونس تروا", OZ_FA], ["دلار (تتر)", irr(usdtIrr)]],
+        note: "قیمت XAG برای هر اونس نقره خالص است؛ بنابراین تبدیل عیار لازم نیست.",
+        sources: [SRC_LIGHTER, SRC_WALLEX],
+    }),
+    kpi("گواهی نقره بورس کالا / گرم (۹۹۹٫۹)", fmtInt(ime.price) + '<span class="unit">ریال</span>',
+        ime.stale ? `آخرین جلسه · ${fa(ime.stale_persian_date) || jd(ime.stale_date)}` : "آخرین معامله" + (ime.time ? " · " + fa(ime.time) : ""), {
+        title: "گواهی سپرده شمش نقره بورس کالا (هر گرم، عیار ۹۹۹٫۹)",
+        value: irr(ime.price),
+        formula: ime.stale ? "قیمت گواهی = آخرین معامله آخرین جلسه (آمار معاملات روزانه)" : "قیمت گواهی = آخرین قیمت معامله (SilverBar)",
+        inputs: [[ime.stale ? "تاریخ جلسه" : "زمان آخرین معامله", ime.stale ? fa(ime.stale_persian_date) || jd(ime.stale_date) : fa(ime.time) || "—"],
+                 ["قیمت تسویه قبلی", irr(ime.settlement_prev)], ["تاریخ تسویه", fa(ime.settlement_prev_date) || "—"]],
+        sources: [SRC_IME],
+        note: (imeStale ? imeStale + " " : "") + "هر گواهی SilverBar معادل یک گرم شمش نقره با عیار ۹۹۹٫۹ است و قیمت بدون تبدیل عیار نمایش داده می‌شود.",
+    }, "", ime.stale ? "stale" : ""),
+    kpi("حباب گواهی نسبت به نقره جهانی", fmtPct(M.ime_bubble, true), ime.stale ? "آخرین جلسه بورس کالا در برابر قیمت جهانی لحظه‌ای" : "گواهی ÷ نقره جهانی هر گرم − ۱", {
+        title: "حباب گواهی نقره بورس کالا نسبت به قیمت جهانی",
+        value: fmtPct(M.ime_bubble, true),
+        formula: "حباب = (قیمت گواهی ÷ نقره جهانی هر گرم − ۱) × ۱۰۰",
+        inputs: [["گواهی بورس کالا (۹۹۹٫۹)", irr(ime.price)], ["نقره جهانی هر گرم (۹۹۹)", irr(M.global_gram)]],
+        sources: [SRC_IME, SRC_LIGHTER, SRC_WALLEX],
+        note: (imeStale ? imeStale + " قیمت جهانی لحظه‌ای است. " : "") + "مقدار مثبت یعنی گواهی بالاتر از قیمت جهانیِ تبدیل‌شده با نرخ تتر معامله می‌شود.",
+    }, M.ime_bubble > 0 ? "pos" : M.ime_bubble < 0 ? "neg" : "", ime.stale ? "stale" : ""),
+].join("");
+}
+
+// ------------------------------------------------------------------ bubble chart
+const svgNS = "http://www.w3.org/2000/svg";
+const chart = document.getElementById("bubble-chart");
+let chartDays = 90;
+
+function pointSpec(p) {
+    return {
+        title: `حباب گواهی · ${jd(p.date)}${p.live ? " (لحظه‌ای)" : ""}`,
+        value: fmtPct(p.bubble, true),
+        formula: `حباب = قیمت گواهی ÷ نقره جهانی هر گرم − ۱\nنقره جهانی هر گرم = XAG ÷ ${OZ_FA} × دلار (ریال)`,
+        inputs: [["آخرین معامله گواهی (۹۹۹٫۹)", irr(p.ime_raw)], ["XAG (دلار بر اونس)", fmtDec(p.xag, 3)],
+                 ["دلار (تتر)", irr(p.usdt * 10)], ["نقره جهانی هر گرم (۹۹۹)", irr(p.global_gram)]],
+        sources: p.live ? [SRC_IME, SRC_LIGHTER, SRC_WALLEX]
+            : [src("بورس کالا", U.ime_hist_page, "آخرین معامله روز"),
+               src("Lighter", U.lighter_page, "قیمت پایانی روزانه"), src("والکس", U.wallex_page, "قیمت پایانی روزانه")],
+        note: p.live ? "نقطه امروز با قیمت‌های لحظه‌ای محاسبه شده است."
+            : "برای XAG و تتر، قیمت پایانی کندل روزانه (UTC) همان روز و در نبود آن، آخرین روز پیش از آن به کار رفته است.",
+    };
+}
+
+function drawChart() {
+    while (chart.firstChild) chart.removeChild(chart.firstChild);
+    let pts = HIST;
+    if (chartDays > 0 && pts.length) {
+        const cut = new Date(new Date(pts[pts.length - 1].date).getTime() - chartDays * 86400000);
+        pts = pts.filter((p) => new Date(p.date) >= cut);
+    }
+    const W = chart.clientWidth || 900, H = 360;
+    chart.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const m = { top: 14, right: 16, bottom: 30, left: 58 };
+    const pw = W - m.left - m.right, ph = H - m.top - m.bottom;
+    const add = (tag, attrs, text) => {
+        const e = document.createElementNS(svgNS, tag);
+        Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+        if (text !== undefined) e.textContent = text;
+        chart.appendChild(e);
+        return e;
+    };
+    const statsEl = document.getElementById("chart-stats");
+    if (pts.length < 2) { statsEl.textContent = "داده کافی نیست"; return; }
+
+    const vals = pts.map((p) => p.bubble);
+    let lo = Math.min(...vals, 0), hi = Math.max(...vals, 0);
+    const padY = (hi - lo) * 0.08 || 1; lo -= padY; hi += padY;
+    const x = (i) => m.left + (i / (pts.length - 1)) * pw;
+    const y = (v) => m.top + ((hi - v) / (hi - lo)) * ph;
+    for (let i = 0; i <= 5; i++) {
+        const v = lo + ((hi - lo) * i) / 5;
+        add("line", { x1: m.left, x2: W - m.right, y1: y(v), y2: y(v), class: "grid" });
+        add("text", { x: m.left - 8, y: y(v) + 4, "text-anchor": "end", class: "axis-label" }, fmtPct(v, false, 1));
+    }
+    add("line", { x1: m.left, x2: W - m.right, y1: y(0), y2: y(0), class: "zero" });
+    const ticks = Math.min(6, pts.length);
+    for (let k = 0; k < ticks; k++) {
+        const i = Math.round((k * (pts.length - 1)) / (ticks - 1));
+        add("text", { x: x(i), y: H - 8, "text-anchor": k === 0 ? "start" : k === ticks - 1 ? "end" : "middle", class: "axis-label" }, jd(pts[i].date));
+    }
+    // Area tinted red above zero (premium), green below (discount).
+    const defs = add("defs", {});
+    const grad = document.createElementNS(svgNS, "linearGradient");
+    grad.setAttribute("id", "bubble-grad"); grad.setAttribute("x1", 0); grad.setAttribute("x2", 0);
+    grad.setAttribute("y1", m.top); grad.setAttribute("y2", m.top + ph); grad.setAttribute("gradientUnits", "userSpaceOnUse");
+    const z = (y(0) - m.top) / ph;
+    [[0, "#f87171", 0.35], [z, "#f87171", 0.04], [z, "#4ade80", 0.04], [1, "#4ade80", 0.35]].forEach(([o, c, a]) => {
+        const s = document.createElementNS(svgNS, "stop");
+        s.setAttribute("offset", Math.min(1, Math.max(0, o))); s.setAttribute("stop-color", c); s.setAttribute("stop-opacity", a);
+        grad.appendChild(s);
+    });
+    defs.appendChild(grad);
+    const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.bubble).toFixed(1)}`).join(" ");
+    add("polygon", { points: `${x(0)},${y(0)} ${line} ${x(pts.length - 1)},${y(0)}`, fill: "url(#bubble-grad)" });
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    add("line", { x1: m.left, x2: W - m.right, y1: y(avg), y2: y(avg), class: "avg" });
+    add("polyline", { points: line, class: "line" });
+
+    const cross = add("line", { x1: 0, x2: 0, y1: m.top, y2: m.top + ph, class: "cross", visibility: "hidden" });
+    const dot = add("circle", { r: 4, class: "dot", visibility: "hidden" });
+    const hit = add("rect", { x: m.left, y: m.top, width: pw, height: ph, fill: "transparent" });
+    const indexAt = (ev) => {
+        const r = chart.getBoundingClientRect();
+        const px = ((ev.clientX - r.left) / r.width) * W;
+        return Math.max(0, Math.min(pts.length - 1, Math.round(((px - m.left) / pw) * (pts.length - 1))));
+    };
+    const focus = (i, withBox) => {
+        cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+        dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(pts[i].bubble)); dot.setAttribute("visibility", "visible");
+        const r = chart.getBoundingClientRect(), sx = r.width / W, sy = r.height / H;
+        const px = r.left + x(i) * sx, py = r.top + y(pts[i].bubble) * sy;
+        // Hover only moves the crosshair and updates a one-line reading; the full box opens on click.
+        const read = document.getElementById("chart-point");
+        if (read) read.innerHTML = `${jd(pts[i].date)}${pts[i].live ? " (لحظه‌ای)" : ""} <b>${fmtPct(pts[i].bubble, true)}</b>`;
+        if (withBox) showTip(pointSpec(pts[i]), dot, { left: px - 8, right: px + 8, width: 16, top: py - 8, bottom: py + 8, height: 16 });
+    };
+    hit.addEventListener("mousemove", (ev) => { if (!pinned) focus(indexAt(ev), false); });
+    hit.addEventListener("mouseleave", () => {
+        if (pinned) return;
+        cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
+        const read = document.getElementById("chart-point");
+        if (read) read.innerHTML = "";
+    });
+    hit.addEventListener("click", (ev) => {
+        pinned = false;
+        focus(indexAt(ev), true);
+        pinned = true;
+        tipEl.classList.add("pinned");
+    });
+
+    const cur = vals[vals.length - 1];
+    statsEl.innerHTML = `<span>فعلی <b>${fmtPct(cur, true)}</b></span><span>میانگین دوره <b>${fmtPct(avg, true)}</b></span>` +
+        `<span>کمینه <b>${fmtPct(Math.min(...vals), true)}</b></span><span>بیشینه <b>${fmtPct(Math.max(...vals), true)}</b></span>` +
+        `<span><b>${fa(pts.length)}</b> روز معاملاتی</span><span id="chart-point"></span>`;
+    document.getElementById("chart-meta").textContent =
+        `از ${jd(pts[0].date)} تا ${jd(pts[pts.length - 1].date)} · خط‌چین زرد: میانگین دوره · برای جزئیات هر روز روی نمودار کلیک کنید`;
+}
+document.querySelectorAll("#windows button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("#windows button").forEach((o) => o.classList.toggle("active", o === b));
+    chartDays = Number(b.dataset.days);
+    try { localStorage.setItem("silver-bubble-window", String(chartDays)); } catch {}
+    hideTip(true);
+    drawChart();
+}));
+try {
+    const saved = localStorage.getItem("silver-bubble-window");
+    if (saved !== null) {
+        chartDays = Number(saved);
+        document.querySelectorAll("#windows button").forEach((o) => o.classList.toggle("active", Number(o.dataset.days) === chartDays));
+    }
+} catch {}
+window.addEventListener("resize", drawChart);
+
+// ------------------------------------------------------------------ table rows
+function sparkline(points) {
+    const vals = points.map((p) => p.value).filter(isNum);
+    if (vals.length < 2) return `<span class="sparkline-empty">—</span>`;
+    let lo = Math.min(...vals, 0), hi = Math.max(...vals, 0);
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const X = (i) => 2 + (i / (vals.length - 1)) * 96;
+    const Y = (v) => 2 + ((hi - v) / (hi - lo)) * 26;
+    const last = vals[vals.length - 1];
+    const color = last > 0 ? "#b91c1c" : last < 0 ? "#15803d" : "#475569";
+    return `<svg class="sparkline" viewBox="0 0 100 30" role="img"><line x1="0" y1="${Y(0).toFixed(1)}" x2="100" y2="${Y(0).toFixed(1)}" class="sparkline-zero"></line>` +
+        `<polyline points="${vals.map((v, i) => X(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ")}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`;
+}
+
+// Where historical NAV came from, in plain words.
+const navOrigin = (f, o) => o.key === "website" ? src(`سایت صندوق (${o.host})`, `https://${o.host}`)
+    : o.key === "fipiran" ? src("فیپیران", o.url)
+    : o.key === "fundbase" ? src("فاندبیس", U.fundbase_fund + encodeURIComponent(f.symbol), "NAV استخراج‌شده از نمودار حباب")
+    : src("جدول روزانه", null, "NAV ثبت‌شده توسط همین داشبورد");
+const navHistorySources = (f) => (f.nav_history_sources || []).map((s) =>
+    isUrl(s) ? (s.includes("fipiran") ? src("فیپیران", s) : src(`سایت صندوق (${new URL(s).hostname})`, new URL(s).origin))
+             : /fundbase/i.test(s) ? navOrigin(f, { key: "fundbase" })
+             : navOrigin(f, { key: "store" }));
+// Average bubble: each NAV source with the number of the averaged days it supplied.
+const avgSources = (f) => (f.avg_nav_origins || []).map((o) => {
+    const [label, url, detail] = navOrigin(f, o);
+    return src(`NAV: ${label}`, url, [days(o.days), detail].filter(Boolean).join("، "));
+});
+const navTime = (f, lp) => f.nav_source === "tsetmc" ? tradeAt(lp.nav_deven, lp.nav_heven)
+    : String(f.nav_source || "").startsWith("history ") ? `سابقه ${jd(f.nav_source.slice(8))}` : f.nav_source || "—";
+
+const tbody = document.querySelector("#funds-table tbody");
+const MIN_DAYS = CFG.min_trading_days;
+function renderRows() {
+tbody.innerHTML = FUNDS.map((f) => {
+    const lp = f.live_price || {};
+    const aw = f.avg_window || {}, sw = f.sf_window || {};
+    const navSrc = navHistorySources(f);
+    const tsePrice = src("TSETMC", U.tsetmc_page + f.insCode, "آخرین معامله");
+    const tseNav = src("TSETMC", U.tsetmc_page + f.insCode, "NAV لحظه‌ای");
+    const tseDaily = src("قیمت: TSETMC", U.tsetmc_page + f.insCode, "آخرین معامله روزانه");
+    const thinAvg = isNum(f.avg_bubble) && aw.n < 50;
+    const cells = [
+        [f.bubble, fmtPct(f.bubble), {
+            title: `${f.symbol} · حباب لحظه‌ای`, value: fmtPct(f.bubble, true),
+            formula: "حباب = (آخرین قیمت ÷ NAV − ۱) × ۱۰۰",
+            inputs: [["آخرین قیمت", irr(f.last)], ["NAV ابطال", irr(f.nav)],
+                     ["زمان معامله", tradeAt(lp.deven, lp.heven)], ["زمان NAV", tradeAt(lp.nav_deven, lp.nav_heven)]],
+            sources: [src("TSETMC", U.tsetmc_page + f.insCode, "آخرین معامله و NAV لحظه‌ای")],
+        }],
+        [f.avg_bubble, fmtPct(f.avg_bubble), {
+            title: `${f.symbol} · میانگین حباب ۵۰ روز معاملاتی اخیر`, value: fmtPct(f.avg_bubble, true),
+            formula: "میانگین حباب = میانگینِ (آخرین قیمت روز ÷ NAV همان روز − ۱) × ۱۰۰\nدر ۵۰ روز معاملاتی پیش از امروز",
+            inputs: [["روزهای موجود", `${fa(aw.n ?? 0)} از ۵۰`], ["از", jd(aw.from)], ["تا", jd(aw.to)]],
+            sources: [tseDaily, ...avgSources(f)],
+            note: !isNum(f.avg_bubble) ? "هنوز سابقه NAV برای این صندوق در دسترس نیست." :
+                thinAvg ? "سابقه قیمت و NAV این صندوق کمتر از ۵۰ روز است؛ میانگین با روزهای موجود محاسبه شده است." : "",
+        }, thinAvg],
+        [f.deviation, fmtPct(f.deviation, true), {
+            title: `${f.symbol} · انحراف حباب از میانگین ۵۰ روزه`, value: fmtPct(f.deviation, true),
+            formula: "انحراف = حباب فعلی − میانگین حباب ۵۰ روزه",
+            inputs: [["حباب فعلی", fmtPct(f.bubble, true)], ["میانگین حباب ۵۰ روزه", fmtPct(f.avg_bubble, true)]],
+            note: "مثبت: حباب بالاتر از میانگین اخیر است (نسبتاً گران). منفی: پایین‌تر از آن است (نسبتاً ارزان).",
+        }, thinAvg],
+        [f.last, fmtInt(f.last), {
+            title: `${f.symbol} · آخرین قیمت معامله`, value: irr(f.last),
+            formula: "آخرین قیمت = pDrCotVal (قیمت آخرین معامله، نه قیمت پایانی)",
+            inputs: [["زمان معامله", tradeAt(lp.deven, lp.heven)], ["قیمت پایانی (مرجع)", irr(lp.closing)]],
+            sources: [tsePrice],
+        }],
+        [f.nav, fmtInt(f.nav), {
+            title: `${f.symbol} · NAV ابطال هر واحد`, value: irr(f.nav),
+            formula: f.nav_source === "tsetmc" ? "NAV = pRedTran (NAV ابطال لحظه‌ای)" : "NAV = آخرین NAV ابطال ثبت‌شده (TSETMC در دسترس نیست)",
+            inputs: [["زمان", navTime(f, lp)]],
+            sources: f.nav_source === "tsetmc" ? [tseNav] : navSrc,
+        }],
+        [f.sf, fmtInt(f.sf), {
+            title: `${f.symbol} · نسبت SF (واحد صندوق به ازای هر گرم نقره ۹۲۵)`, value: fmtInt(f.sf),
+            formula: "SF = صدک ۸۰ نسبت (IME925 ÷ آخرین قیمت صندوق)\nدر ۲۰۰ روز معاملاتی اخیر\nIME925 = قیمت گواهی × ۰٫۹۲۵ ÷ ۰٫۹۹۹۹",
+            inputs: [["روزهای استفاده‌شده", `${fa(sw.n ?? 0)} از ۲۰۰`], ["از", jd(sw.from)], ["تا", jd(sw.to)],
+                     ["کمترین نسبت", fmtDec(sw.min, 1)], ["بیشترین نسبت", fmtDec(sw.max, 1)]],
+            sources: [src("بورس کالا", U.ime_hist_page, "آخرین معامله هر روز"), tseDaily],
+            note: (sw.n ?? 0) < 200 ? "سابقه معاملات صندوق کمتر از ۲۰۰ روز است؛ صدک با روزهای موجود محاسبه شده است." : "",
+        }],
+        [f.eq_silver, fmtInt(f.eq_silver), {
+            title: `${f.symbol} · قیمت ضمنی هر گرم نقره ۹۲۵`, value: irr(f.eq_silver),
+            formula: "EqSilver = نسبت SF × آخرین قیمت",
+            inputs: [["نسبت SF", fmtInt(f.sf)], ["آخرین قیمت", irr(f.last)], ["IME925 فعلی", irr(M.ime_925)],
+                     ["اختلاف با IME925", isNum(f.eq_silver) && M.ime_925 ? fmtPct((f.eq_silver / M.ime_925 - 1) * 100, true) : "—"]],
+            note: "اگر کمتر از IME925 باشد، خرید نقره از طریق این صندوق (با نسبت صدک ۸۰ تاریخی) ارزان‌تر از خرید گواهی است.",
+        }],
+    ];
+    const young = isNum(f.trading_days) && f.trading_days < MIN_DAYS;
+    const st = fundStatus(f);
+    const fundTip = tip({
+        title: `${f.symbol} · ${f.name || ""}`,
+        inputs: [["وضعیت", st.text], ["وضعیت نماد (TSETMC)", lp.state_title || "—"],
+                 ["آخرین معامله", tradeAt(lp.deven, lp.heven)], ["insCode (TSETMC)", f.insCode || "—"], ["regNo (فیپیران)", f.regNo || "—"],
+                 ["وب‌سایت", f.website ? ltr(f.website) : "—"],
+                 ["روزهای معاملاتی در TSETMC", isNum(f.trading_days) ? fa(f.trading_days) : "—"]],
+        sources: [src("فاندبیس", U.fundbase_fund + encodeURIComponent(f.symbol), "صفحه صندوق"), src("TSETMC", U.tsetmc_page + f.insCode, "صفحه نماد"),
+                  ...navSrc.map(([l, u, d]) => src(`سابقه NAV: ${l}`, u, d))],
+        note: [young ? `سابقه معاملات کمتر از ${fa(MIN_DAYS)} روز است؛ به همین دلیل به‌طور پیش‌فرض در جدول نمایش داده نمی‌شود.` : "",
+               (f.errors || []).length ? "خطا در دریافت داده: " + f.errors.join(" | ") : ""].filter(Boolean).join(" "),
+    });
+    const trendTip = tip({
+        title: `${f.symbol} · روند حباب (۵۰ روز)`,
+        formula: "حباب روز = آخرین قیمت روز ÷ NAV همان روز − ۱\n(نقطه آخر: لحظه‌ای)",
+        inputs: [["تعداد نقاط", fa((f.trend || []).length)],
+                 ["بازه", (f.trend || []).length ? `${jd(f.trend[0].date)} تا ${jd(f.trend[f.trend.length - 1].date)}` : "—"]],
+        note: "برای نمودار بزرگ‌تر روی نمودار کوچک کلیک کنید.",
+    });
+    return `<tr data-symbol="${esc(f.symbol)}" data-pinned="false"${young ? ' class="young"' : ""}>` +
+        `<td class="fund" data-tip="${fundTip}"><span class="fund-symbol"><button class="pin-toggle" type="button" title="سنجاق کردن" aria-pressed="false">☆</button>${esc(f.symbol)}<span class="st-dot ${st.dot}" title="${esc(st.text)}"></span>${st.badge ? `<span class="st-badge ${st.dot}">${st.badge}</span>` : ""}${young ? `<span class="young-badge">${days(f.trading_days)}</span>` : ""}</span><span class="fund-name">${esc(f.name || "")}</span></td>` +
+        `<td class="sparkline-cell" tabindex="0" data-tip="${trendTip}" data-trend='${esc(JSON.stringify(f.trend || []))}'>${sparkline(f.trend || [])}</td>` +
+        cells.map(([v, txt, t, thin]) => `<td class="num${thin ? " thin" : ""}" data-value="${isNum(v) ? v : ""}" data-tip="${tip(t)}">${txt}</td>`).join("") +
+        `</tr>`;
+}).join("");
+}
+
+// ------------------------------------------------------------------ sort / pin / overlay (as in the gold dashboard)
+const sortState = {};
+const pinnedStorageKey = "silver-nav-bubble-dashboard-pinned-funds";
+let memoryPinnedSymbols = new Set();
+function pinnedSymbols() {
+    try { return new Set(JSON.parse(localStorage.getItem(pinnedStorageKey)) || []); }
+    catch { return new Set(memoryPinnedSymbols); }
+}
+function savePinnedSymbols(symbols) {
+    memoryPinnedSymbols = new Set(symbols);
+    try { localStorage.setItem(pinnedStorageKey, JSON.stringify([...symbols])); } catch {}
+}
+function renderPin(row, isPinned) {
+    row.dataset.pinned = String(isPinned);
+    const button = row.querySelector(".pin-toggle");
+    button.textContent = isPinned ? "★" : "☆";
+    button.classList.toggle("is-pinned", isPinned);
+    button.title = isPinned ? "برداشتن سنجاق" : "سنجاق کردن";
+    button.setAttribute("aria-pressed", String(isPinned));
+}
+function sortTable(colIdx, keepDirection = false) {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const asc = keepDirection ? sortState[colIdx] !== "desc" : sortState[colIdx] !== "asc";
+    Object.keys(sortState).forEach((k) => delete sortState[k]);
+    sortState[colIdx] = asc ? "asc" : "desc";
+    rows.sort((a, b) => {
+        const ap = a.dataset.pinned === "true", bp = b.dataset.pinned === "true";
+        if (ap !== bp) return ap ? -1 : 1;
+        const av = parseFloat(a.children[colIdx].dataset.value), bv = parseFloat(b.children[colIdx].dataset.value);
+        if (Number.isNaN(av) && Number.isNaN(bv)) return 0;
+        if (Number.isNaN(av)) return 1;
+        if (Number.isNaN(bv)) return -1;
+        return asc ? av - bv : bv - av;
+    });
+    rows.forEach((r) => tbody.appendChild(r));
+    stripeRows();
+    document.querySelectorAll("th.sortable .sort-indicator").forEach((el) => { el.textContent = ""; });
+    const active = document.querySelector(`th.sortable[data-col="${colIdx}"] .sort-indicator`);
+    if (active) active.textContent = asc ? "▲" : "▼";
+}
+document.querySelectorAll("th.sortable").forEach((h) => h.addEventListener("click", () => sortTable(Number(h.dataset.col))));
+tbody.addEventListener("click", (ev) => {
+    const cell = ev.target.closest(".sparkline-cell");
+    if (cell) { openTrendOverlay(cell); return; }
+    const button = ev.target.closest(".pin-toggle");
+    if (!button) return;
+    ev.stopPropagation();
+    const row = button.closest("tr");
+    const symbols = pinnedSymbols();
+    const isPinned = !symbols.has(row.dataset.symbol);
+    if (isPinned) symbols.add(row.dataset.symbol); else symbols.delete(row.dataset.symbol);
+    savePinnedSymbols(symbols);
+    renderPin(row, isPinned);
+    const activeColumn = Object.keys(sortState)[0];
+    if (activeColumn !== undefined) sortTable(Number(activeColumn), true);
+});
+
+function closeTrendOverlay() { document.querySelector(".trend-overlay")?.remove(); }
+function buildTrendChart(points) {
+    const values = points.map((p) => Number(p.value)).filter(Number.isFinite);
+    if (values.length < 2) return null;
+    const width = 720, height = 360, margin = { top: 24, right: 20, bottom: 58, left: 68 };
+    const plotWidth = width - margin.left - margin.right, plotHeight = height - margin.top - margin.bottom;
+    let minValue = Math.min(...values), maxValue = Math.max(...values);
+    if (minValue === maxValue) { minValue -= 1; maxValue += 1; }
+    const padding = (maxValue - minValue) * 0.08;
+    minValue -= padding; maxValue += padding;
+    const x = (i) => margin.left + (i / (values.length - 1)) * plotWidth;
+    const y = (v) => margin.top + ((maxValue - v) / (maxValue - minValue)) * plotHeight;
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.classList.add("trend-chart-svg");
+    const add = (tag, attrs, text = "") => {
+        const e = document.createElementNS(svgNS, tag);
+        Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+        if (text) e.textContent = text;
+        svg.appendChild(e);
+        return e;
+    };
+    add("line", { x1: margin.left, y1: margin.top + plotHeight, x2: width - margin.right, y2: margin.top + plotHeight, class: "chart-axis" });
+    add("line", { x1: margin.left, y1: margin.top, x2: margin.left, y2: margin.top + plotHeight, class: "chart-axis" });
+    for (let i = 0; i <= 4; i++) {
+        const v = minValue + ((maxValue - minValue) * i) / 4;
+        add("line", { x1: margin.left, y1: y(v), x2: width - margin.right, y2: y(v), class: "chart-grid" });
+        add("text", { x: margin.left - 10, y: y(v) + 4, class: "chart-label", "text-anchor": "end" }, fmtPct(v));
+    }
+    if (minValue < 0 && maxValue > 0) add("line", { x1: margin.left, y1: y(0), x2: width - margin.right, y2: y(0), class: "chart-zero" });
+    const last = values[values.length - 1];
+    add("polyline", { points: values.map((v, i) => x(i) + "," + y(v)).join(" "), class: "chart-line",
+                      stroke: last > 0 ? "#b91c1c" : last < 0 ? "#15803d" : "#475569" });
+    [...new Set([0, Math.floor((values.length - 1) / 2), values.length - 1])].forEach((i) => {
+        add("line", { x1: x(i), y1: margin.top + plotHeight, x2: x(i), y2: margin.top + plotHeight + 6, class: "chart-axis" });
+        add("text", { x: x(i), y: height - 26, class: "chart-label", "text-anchor": "middle" }, points[i]?.date ? jd(points[i].date) : "");
+    });
+    add("text", { x: margin.left, y: 14, class: "chart-axis-title", "text-anchor": "start" }, "حباب (٪)");
+    add("text", { x: width - margin.right, y: height - 6, class: "chart-axis-title", "text-anchor": "end" }, "تاریخ");
+    return svg;
+}
+function openTrendOverlay(cell) {
+    let points = [];
+    try { points = JSON.parse(cell.dataset.trend || "[]"); } catch { return; }
+    const chartSvg = buildTrendChart(points);
+    if (!chartSvg) return;
+    closeTrendOverlay();
+    hideTip(true);
+    const row = cell.closest("tr");
+    const overlay = document.createElement("div");
+    overlay.className = "trend-overlay";
+    overlay.innerHTML = `<div class="trend-dialog" role="dialog" aria-modal="true"><button class="trend-close" type="button" aria-label="بستن">×</button>
+        <div class="trend-dialog-title"></div><div class="trend-dialog-meta"></div><div class="trend-chart"></div></div>`;
+    overlay.querySelector(".trend-dialog-title").textContent =
+        `${row.dataset.symbol} · ${row.querySelector(".fund-name")?.textContent || ""} · روند حباب (۵۰ روز)`;
+    overlay.querySelector(".trend-dialog-meta").textContent =
+        `${fa(points.length)} مشاهده · از ${jd(points[0]?.date)} تا ${jd(points[points.length - 1]?.date)}`;
+    overlay.querySelector(".trend-chart").appendChild(chartSvg);
+    overlay.querySelector(".trend-close").addEventListener("click", closeTrendOverlay);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeTrendOverlay(); });
+    document.body.appendChild(overlay);
+    const dialog = overlay.querySelector(".trend-dialog");
+    const docH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    overlay.style.height = `${docH}px`;
+    const rowTop = row.getBoundingClientRect().top + window.scrollY;
+    dialog.style.marginTop = `${Math.min(Math.max(16, rowTop + row.offsetHeight / 2 - dialog.offsetHeight / 2), Math.max(16, docH - dialog.offsetHeight - 16))}px`;
+    overlay.querySelector(".trend-close").focus();
+}
+tbody.addEventListener("keydown", (e) => {
+    const cell = e.target.closest(".sparkline-cell");
+    if (cell && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openTrendOverlay(cell); }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeTrendOverlay(); hideTip(true); } });
+
+// Funds with fewer than MIN_DAYS trading days are hidden unless the viewer chooses to show them.
+const table = document.getElementById("funds-table");
+const youngKey = "silver-nav-bubble-dashboard-show-young";
+function stripeRows() {
+    let i = 0;
+    tbody.querySelectorAll("tr").forEach((r) => {
+        const visible = table.classList.contains("show-young") || !r.classList.contains("young");
+        r.classList.toggle("odd", visible && i % 2 === 0);
+        r.classList.toggle("even", visible && i % 2 === 1);
+        if (visible) i++;
+    });
+}
+function renderYoungToggle() {
+    const young = FUNDS.filter((f) => isNum(f.trading_days) && f.trading_days < MIN_DAYS);
+    const foot = document.getElementById("table-foot");
+    if (!young.length) { foot.innerHTML = ""; return; }
+    const shown = table.classList.contains("show-young");
+    const names = young.map((f) => `${esc(f.symbol)} (${days(f.trading_days)})`).join("، ");
+    foot.innerHTML = `<button type="button" id="young-btn">${shown ? "پنهان کردن" : "نمایش"} ${fa(young.length)} صندوق با کمتر از ${fa(MIN_DAYS)} روز معاملاتی</button>` +
+        `<span>${shown ? "نمایش داده‌شده" : "پنهان"}: ${names}</span>`;
+    document.getElementById("young-btn").addEventListener("click", () => {
+        const show = !table.classList.contains("show-young");
+        table.classList.toggle("show-young", show);
+        try { localStorage.setItem(youngKey, show ? "1" : "0"); } catch {}
+        stripeRows();
+        renderYoungToggle();
+    });
+}
+try { table.classList.toggle("show-young", localStorage.getItem(youngKey) === "1"); } catch {}
+
+function renderTable() {
+    renderRows();
+    const savedPins = pinnedSymbols();
+    tbody.querySelectorAll("tr").forEach((r) => renderPin(r, savedPins.has(r.dataset.symbol)));
+    renderYoungToggle();
+    const col = Object.keys(sortState)[0];  // keep the viewer's sort across updates
+    sortTable(col === undefined ? 2 : Number(col), col !== undefined);
+}
+function renderAll() {
+    TIPS.length = 0;
+    renderStatus();
+    renderKpis();
+    drawChart();
+    renderTable();
+}
+setData(SNAP);
+renderAll();
+
+// ------------------------------------------------------------------ live updates
+// The server saves each new snapshot to static/live.json; while this tab is visible the page
+// re-reads it every few seconds and redraws in place. Updates wait while an explainer box or
+// trend chart is open, so numbers never change under the viewer.
+const LIVE_URL = (() => {
+    try { return new URL("app/static/live.json", window.parent.location.href).href; } catch { return null; }
+})();
+async function pollLive() {
+    if (!LIVE_URL || document.visibilityState !== "visible" || pinned || document.querySelector(".trend-overlay")) return;
+    try {
+        const r = await fetch(`${LIVE_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const snap = await r.json();
+        if (!snap.funds || snap.fetched_at === SNAP.fetched_at) return;
+        setData(snap);
+        renderAll();
+    } catch {}
+}
+setInterval(pollLive, CFG.refresh_seconds * 1000);
+
+// Size the Streamlit iframe to the content, including when sections open or close.
+function fitFrame() {
+    try { window.frameElement.style.height = document.getElementById("app").scrollHeight + 8 + "px"; } catch {}
+}
+fitFrame();
+new ResizeObserver(fitFrame).observe(document.getElementById("app"));
+</script>

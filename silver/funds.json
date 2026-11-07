@@ -1,0 +1,22 @@
+{
+  "_comment": "Silver ETF symbols as listed on https://app.fundbase.ir/categories/نقره (captured 2026-10-31). regNo / insCode are resolved at runtime from Fipiran and TSETMC. 'websites' optionally overrides a fund's website (used for NAV history) when the address Fipiran lists is wrong or offline.",
+  "symbols": [
+    "سیمین",
+    "سیلور",
+    "نقرابی",
+    "نقرین",
+    "نقران",
+    "سیگلو",
+    "پلاتا",
+    "نقرآمد",
+    "یاس",
+    "سیلوا",
+    "نقراط",
+    "نقراتی",
+    "نقرسا",
+    "نقرفام",
+    "نقرا",
+    "سیان"
+  ],
+  "websites": {}
+}

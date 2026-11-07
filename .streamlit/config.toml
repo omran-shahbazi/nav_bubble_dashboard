@@ -1,0 +1,9 @@
+[theme]
+base = "dark"
+
+[server]
+headless = true
+enableStaticServing = true   # serves static/live.json to the page
+
+[browser]
+gatherUsageStats = false
